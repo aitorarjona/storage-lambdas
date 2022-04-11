@@ -1,0 +1,10 @@
+{
+    "benchmark": "write",
+    "s3endpoint": "127.0.0.1:8080",
+    "s3endpointScheme": "http",
+    "s3accessKeyId": "minio",
+    "s3secretAccessKey": "miniostorage",
+    "s3Bucket": "test",
+    "payloadSize": 104857600,
+    "numberKeys": 1
+}

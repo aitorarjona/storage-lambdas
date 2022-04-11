@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: active-s3-proxy
+  labels:
+    app: active-s3-proxy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: active-s3-proxy
+  template:
+    metadata:
+      labels:
+        app: active-s3-proxy
+    spec:
+      containers:
+        - name: s3proxy
+          image: aitorarjona/active-s3-proxy:0.1
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: s3proxy-config-volume
+              mountPath: /opt/s3proxy/activeS3manifest.yaml
+      volumes:
+      - name: s3proxy-config-volume
+        configMap:
+          name: s3proxy-properties
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: nodekind
+                    operator: In
+                    values:
+                      - storage

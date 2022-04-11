@@ -1,0 +1,55 @@
+1mb
+--- write ---
+MinIO mean 135.53979289545455 ms
+MinIO median 133.534155 ms
+MinIO min 124.99321 ms
+MinIO max 158.25239 ms
+s3proxy mean 166.33407188181815 ms
+s3proxy median 163.957317 ms
+s3proxy min 153.883573 ms
+s3proxy max 205.054799 ms
+Active s3proxy mean 320.04830865909094 ms
+Active s3proxy median 316.6443305 ms
+Active s3proxy min 299.94247 ms
+Active s3proxy max 407.646927 ms
+--- read ---
+MinIO mean 33.22946746363636 ms
+MinIO median 37.638217499999996 ms
+MinIO min 19.659958 ms
+MinIO max 61.283227 ms
+s3proxy mean 38.09874245909091 ms
+s3proxy median 32.4761785 ms
+s3proxy min 23.923726 ms
+s3proxy max 64.658798 ms
+Active s3proxy mean 43.84352573181818 ms
+Active s3proxy median 47.0715795 ms
+Active s3proxy min 25.718239 ms
+Active s3proxy max 74.594115 ms
+
+100mb
+--- write ---
+MinIO mean 3105.883901381818 ms
+MinIO median 3104.793348 ms
+MinIO min 3031.74821 ms
+MinIO max 3180.686962 ms
+s3proxy mean 5117.302815986363 ms
+s3proxy median 5113.880143 ms
+s3proxy min 5095.452581 ms
+s3proxy max 5191.771055 ms
+Active s3proxy mean 6482.045001254545 ms
+Active s3proxy median 6443.491323 ms
+Active s3proxy min 6378.030375 ms
+Active s3proxy max 6725.883914 ms
+--- read ---
+MinIO mean 983.4162691318182 ms
+MinIO median 980.9214365 ms
+MinIO min 958.304024 ms
+MinIO max 1031.478931 ms
+s3proxy mean 1060.5569937181817 ms
+s3proxy median 1049.775385 ms
+s3proxy min 993.613189 ms
+s3proxy max 1178.009025 ms
+Active s3proxy mean 1058.3571409272727 ms
+Active s3proxy median 1053.0782195 ms
+Active s3proxy min 990.004624 ms
+Active s3proxy max 1148.05211 ms
