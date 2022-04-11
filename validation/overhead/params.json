@@ -5,6 +5,6 @@
     "s3accessKeyId": "minio",
     "s3secretAccessKey": "miniostorage",
     "s3Bucket": "test",
-    "payloadSize": 104857600,
+    "payloadSize": 1024,
     "numberKeys": 1
 }

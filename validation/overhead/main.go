@@ -46,6 +46,7 @@ type result struct {
 	Start   int64 `json:"start"`
 	End     int64 `json:"end"`
 	Elapsed int64 `json:"elapsed"`
+	TTFB    int64 `json:"ttfb"`
 }
 
 func write(httpClient *http.Client, params *params, creds *aws.Credentials, payload []byte, key string, sha string, resChan chan result) {
@@ -116,12 +117,16 @@ func read(httpClient *http.Client, params *params, creds *aws.Credentials,
 		log.Fatal(err)
 	}
 
+	firstByte := make([]byte, 1)
+
 	signer := v4.NewSigner()
 	signer.SignHTTP(context.Background(), *creds, req, sha, "s3", "us-east-1", time.Now())
 
 	start := time.Now()
 	res, err1 := httpClient.Do(req)
-	bodyRes, err2 := io.ReadAll(res.Body)
+	_, err2 := req.Body.Read(firstByte)
+	ttfb := time.Now()
+	bodyRes, err3 := io.ReadAll(res.Body)
 	end := time.Now()
 	if err1 != nil {
 		log.Fatal(err)
@@ -129,19 +134,28 @@ func read(httpClient *http.Client, params *params, creds *aws.Credentials,
 	if err2 != nil {
 		log.Fatal(err)
 	}
+	if err3 != nil {
+		log.Fatal(err)
+	}
+	allBody := []byte{}
+	allBody = append(allBody, firstByte...)
+	allBody = append(allBody, bodyRes...)
 	fmt.Println("Status", res.Status)
 	fmt.Println("Content-Length", res.ContentLength)
 	fmt.Println("TransferEncoding", res.TransferEncoding)
 	fmt.Println("Headers", res.Header)
-	fmt.Println("Body len", len(bodyRes))
+	fmt.Println("Body len", len(allBody))
 
 	elapsed := end.Sub(start)
+	ttfbElpased := ttfb.Sub(start)
 	fmt.Println("Time elpased", elapsed)
+	fmt.Println("TTFB", ttfbElpased)
 
 	resChan <- result{
 		Start:   start.UnixNano(),
 		End:     end.UnixNano(),
 		Elapsed: elapsed.Nanoseconds(),
+		TTFB:    ttfbElpased.Nanoseconds(),
 	}
 }
 
