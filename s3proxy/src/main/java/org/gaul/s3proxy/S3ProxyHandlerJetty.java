@@ -39,6 +39,7 @@ import org.jclouds.util.Throwables2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.UnifiedJedis;
 
 /**
  * Jetty-specific handler for S3 requests.
@@ -56,7 +57,7 @@ final class S3ProxyHandlerJetty extends AbstractHandler {
                         @Nullable String gatewayHost, boolean ignoreUnknownHeaders,
                         CrossOriginResourceSharing corsRules, String servicePath,
                         int maximumTimeSkew, ActionRepository actionRepository,
-                        JedisPool jedisPool) {
+                        UnifiedJedis jedisPool) {
         handler = new S3ProxyHandler(blobStore, authenticationType, identity,
                 credential, virtualHost, maxSinglePartObjectSize,
                 v4MaxNonChunkedRequestSize, gatewayHost, ignoreUnknownHeaders, corsRules,

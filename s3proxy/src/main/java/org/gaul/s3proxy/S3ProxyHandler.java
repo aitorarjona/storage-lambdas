@@ -86,11 +86,9 @@ import com.google.common.net.PercentEscaper;
 
 import org.apache.commons.fileupload.MultipartStream;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpRequest;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
@@ -127,15 +125,12 @@ import org.jclouds.io.ContentMetadataBuilder;
 import org.jclouds.io.Payload;
 import org.jclouds.io.Payloads;
 import org.jclouds.rest.AuthorizationException;
-import org.jclouds.s3.S3;
 import org.jclouds.s3.domain.ObjectMetadata.StorageClass;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.UnifiedJedis;
 
 /**
  * HTTP server-independent handler for S3 requests.
@@ -233,10 +228,8 @@ public class S3ProxyHandler {
     private final CloseableHttpClient httpClient;
 
     // redis client
-    private final JedisPool jedisPool;
-//    private final JedisPoolConfig poolConfig = new JedisPoolConfig();
-//    private final JedisPool jedisPool = new JedisPool(poolConfig, "192.168.1.144", 6379, 250,
-//            "redispassword123");
+    private final UnifiedJedis redisConnector;
+
     /**
      * S3 supports arbitrary keys for the marker while some blobstores only
      * support opaque markers.  Emulate the common case for these by mapping
@@ -253,7 +246,7 @@ public class S3ProxyHandler {
                           @Nullable String gatewayHost, boolean ignoreUnknownHeaders,
                           @Nullable CrossOriginResourceSharing corsRules,
                           final String servicePath, int maximumTimeSkew,
-                          ActionRepository actionRepository, JedisPool jedisPool) {
+                          ActionRepository actionRepository, UnifiedJedis redisConnector) {
         if (corsRules != null) {
             this.corsRules = corsRules;
         } else {
@@ -293,7 +286,7 @@ public class S3ProxyHandler {
         this.servicePath = Strings.nullToEmpty(servicePath);
         this.maximumTimeSkew = maximumTimeSkew;
         this.actionRepository = actionRepository;
-        this.jedisPool = jedisPool;
+        this.redisConnector = redisConnector;
 
         PoolingHttpClientConnectionManager cm = new PoolingHttpClientConnectionManager();
         this.httpClient = HttpClients.custom().setConnectionManager(cm).build();
@@ -1709,12 +1702,10 @@ public class S3ProxyHandler {
         String query = request.getParameter("query");
         String blobContentType = null;
         if (query != null && this.actionRepository != null) {
-            if (jedisPool != null) {
-                Jedis jedis = jedisPool.getResource();
+            if (redisConnector != null) {
                 String key = "/" + containerName + "/" + blobName;
                 logger.info("Getting meta from Redis (key={})", key);
-                blobContentType = jedis.hget(key, "Content-Type");
-                jedis.close();
+                blobContentType = redisConnector.hget(key, "Content-Type");
             }
 
             if (blobContentType == null) {
@@ -1987,12 +1978,10 @@ public class S3ProxyHandler {
         }
 
         String contentType = request.getContentType();
-        if (jedisPool != null && contentType != null) {
-            Jedis jedis = jedisPool.getResource();
+        if (redisConnector != null && contentType != null) {
             String key = "/" + containerName + "/" + blobName;
             logger.info("Set metadata to Redis (key={})", key);
-            jedis.hset(key, "Content-Type", contentType);
-            jedis.close();
+            redisConnector.hset(key, "Content-Type", contentType);
         }
 
         Module mod = null;

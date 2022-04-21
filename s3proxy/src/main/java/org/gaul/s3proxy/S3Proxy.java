@@ -24,9 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collection;
-import java.util.Objects;
-import java.util.Properties;
+import java.util.*;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
@@ -45,8 +43,7 @@ import org.gaul.s3proxy.actionrepo.ActionRepository;
 import org.jclouds.blobstore.BlobStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.*;
 
 /**
  * S3Proxy translates S3 HTTP operations into jclouds provider-agnostic
@@ -138,7 +135,7 @@ public final class S3Proxy {
         private int jettyMaxThreads = 200;  // sourced from QueuedThreadPool()
         private int maximumTimeSkew = 15 * 60;
         private ActionRepository actionRepository;
-        private JedisPool jedisPool;
+        private UnifiedJedis jedisPool;
 
         Builder() {
         }
@@ -267,14 +264,14 @@ public final class S3Proxy {
                 }
             }
 
-            String redisHost = properties.getProperty(S3ProxyConstants.REDIS_HOST);
-            String redisPort = properties.getProperty(S3ProxyConstants.REDIS_PORT);
+            String redisHosts = properties.getProperty(S3ProxyConstants.REDIS_HOSTS);
             String redisPassword = properties.getProperty(S3ProxyConstants.REDIS_PASSWORD);
-            if (redisHost != null && redisPort != null && redisPassword != null) {
-                JedisPoolConfig poolConfig = new JedisPoolConfig();
-                builder.jedisPool = new JedisPool(poolConfig, redisHost, Integer.parseInt(redisPort),
-                        250, redisPassword);
-                logger.info("Created Jedis client");
+            if (redisHosts != null && redisPassword != null) {
+                if (redisHosts.contains(",")) {
+                    builder.jedisPool = new RedisClusterConnector(redisHosts, redisPassword);
+                } else {
+                    builder.jedisPool = new RedisPoolConnector(redisHosts, redisPassword);
+                }
             }
 
             return builder;
