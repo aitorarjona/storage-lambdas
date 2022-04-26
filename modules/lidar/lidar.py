@@ -4,10 +4,12 @@ import secrets
 import time
 import logging
 
+from pys3proxy.handler import HandlerBase
+
 logger = logging.getLogger(__name__)
 
 
-class LASModule:
+class LASModule(HandlerBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -98,12 +100,13 @@ class LASModule:
                 output_chunk = await proc.stdout.read()
             logger.debug('done reading output')
 
-        await asyncio.gather(input_writer(), output_reader())
+        try:
+            await asyncio.gather(input_writer(), output_reader())
+        finally:
+            out, err = await proc.communicate()
+            logger.debug(out)
+            logger.debug(err)
 
-        out, err = await proc.communicate()
-        logger.debug(out)
-        logger.debug(err)
-
-        logger.debug('preprocessing ended')
+        # logger.debug('preprocessing ended')
         t1 = time.perf_counter()
         logger.debug(f'--- end getXY --- (took {t1 - t0} s)')

@@ -1,10 +1,7 @@
-from asyncio.log import logger
-from curses import nonl
 from dataclasses import dataclass
 import traceback
 import os
 import logging
-from turtle import goto
 from aiobotocore.session import AioSession
 from sanic import Sanic
 from sanic.response import json
@@ -13,7 +10,9 @@ from redis import asyncio as aioredis
 from .streamwriter import MultipartUploader
 
 app = Sanic(name="test")
+logger = logging.getLogger(__name__)
 
+from lidar import LASModule
 
 @dataclass
 class Params:
@@ -22,6 +21,15 @@ class Params:
     s3_endpoint_url: str
     redis_url: str
     redis_password: str
+
+globalParams = Params(
+    s3_endpoint_url=os.environ['S3_ENDPOINT_URL'],
+    s3_access_key_id=os.environ['S3_ACCESS_KEY_ID'],
+    s3_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY'],
+    redis_url=os.environ.get('REDIS_URL'),
+    redis_password=os.environ.get('REDIS_PASSWORD')
+)
+logging.basicConfig(level=os.environ.get('LOG_LEVEL', logging.INFO))
 
 
 @app.route('/preprocess', methods=["POST"], stream=True)
@@ -57,17 +65,22 @@ async def preprocess(request):
 
 
 @app.route('/apply/<function_name:str>', methods=["GET"], stream=True)
-async def preprocess(request, function_name):
+async def apply(request, function_name):
+    global globalParams
     session = AioSession()
 
     bucket = request.headers['amz-s3proxy-bucket']
-    key = request.headers['amz-s3proxy-obj-key']
+    key = request.headers['amz-s3proxy-key']
     kwargs = {k: v.pop() for k, v in request.args.items()}
 
-    redis_client = await aioredis.from_url(
-        globalParams.redis_url,
-        password=globalParams.redis_password
-    )
+    logger.info('GET %s %s %s %s', function_name, bucket, key, str(kwargs))
+    # print(globalParams)
+
+    # redis_client = await aioredis.from_url(
+    #     globalParams.redis_url,
+    #     password=globalParams.redis_password
+    # )
+    redis_client = None
     response = await request.respond(content_type="application/octet-stream")
 
     async with session.create_client(
@@ -88,17 +101,3 @@ async def preprocess(request, function_name):
             traceback.print_exc()
 
     await response.eof()
-
-
-if __name__ == '__main__':
-    from lidar import LASModule
-    global globalParams
-    globalParams = Params(
-        s3_endpoint_url=os.environ['S3_ENDPOINT_URL'],
-        s3_access_key_id=os.environ['S3_ACESS_KEY_ID'],
-        s3_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY'],
-        redis_url=os.environ['REDIS_URL'],
-        redis_password=os.environ['REDIS_PASSWORD']
-    )
-    logging.basicConfig(level=os.environ.get('LOG_LEVEL', logging.INFO))
-    app.run()
