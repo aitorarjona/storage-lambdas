@@ -29,7 +29,6 @@ globalParams = Params(
     redis_url=os.environ.get('REDIS_URL'),
     redis_password=os.environ.get('REDIS_PASSWORD')
 )
-logging.basicConfig(level=os.environ.get('LOG_LEVEL', logging.INFO))
 
 
 @app.route('/preprocess', methods=["POST"], stream=True)
