@@ -107,7 +107,8 @@ public final class S3ProxyConstants {
     /**
      * Redis config parameters
      */
-    static final String REDIS_HOSTS = "actives3proxy.redis.hosts";
+    static final String REDIS_HOST = "actives3proxy.redis.host";
+    static final String REDIS_PORT = "actives3proxy.redis.port";
     static final String REDIS_PASSWORD = "actives3proxy.redis.password";
 
 
