@@ -5,22 +5,27 @@ import java.util.List;
 import java.util.Map;
 
 public class Module {
-    private String module;
-    private Gateway gateway;
-    private List<String> mimeTypes;
-    private LinkedHashMap<String, List<Action>> actions;
-    private Boolean preprocess;
 
-    public Module() {
+    private String module;
+    private String image;
+    private String host;
+    private int port;
+    private List<Action> actions;
+    private List<Trigger> triggers;
+    private List<Pipeline> pipelines;
+
+    public Module(String module, String image, String host, int port, List<Action> actions, List<Trigger> triggers,
+                  List<Pipeline> pipelines) {
+        this.module = module;
+        this.image = image;
+        this.host = host;
+        this.port = port;
+        this.actions = actions;
+        this.triggers = triggers;
+        this.pipelines = pipelines;
     }
 
-    public Module(String module, Gateway gateway, List<String> mimeTypes, LinkedHashMap<String, List<Action>> actions,
-                  Boolean preprocess) {
-        this.module = module;
-        this.gateway = gateway;
-        this.mimeTypes = mimeTypes;
-        this.actions = actions;
-        this.preprocess = preprocess;
+    public Module() {
     }
 
     public String getModule() {
@@ -31,35 +36,64 @@ public class Module {
         this.module = module;
     }
 
-    public Gateway getGateway() {
-        return gateway;
+    public String getImage() {
+        return image;
     }
 
-    public void setGateway(Gateway gateway) {
-        this.gateway = gateway;
+    public void setImage(String image) {
+        this.image = image;
     }
 
-    public List<String> getMimeTypes() {
-        return mimeTypes;
+    public String getHost() {
+        return host;
     }
 
-    public void setMimeTypes(List<String> mimeTypes) {
-        this.mimeTypes = mimeTypes;
+    public void setHost(String host) {
+        this.host = host;
     }
 
-    public Map<String, List<Action>> getActions() {
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    public List<Action> getActions() {
         return actions;
     }
 
-    public void setActions(LinkedHashMap<String, List<Action>> actions) {
+    public void setActions(List<Action> actions) {
         this.actions = actions;
     }
 
-    public Boolean getPreprocess() {
-        return preprocess;
+    public List<Trigger> getTriggers() {
+        return triggers;
     }
 
-    public void setPreprocess(Boolean preprocess) {
-        this.preprocess = preprocess;
+    public void setTriggers(List<Trigger> triggers) {
+        this.triggers = triggers;
+    }
+
+    public List<Pipeline> getPipelines() {
+        return pipelines;
+    }
+
+    public void setPipelines(List<Pipeline> pipelines) {
+        this.pipelines = pipelines;
+    }
+
+    @Override
+    public String toString() {
+        return "Module{" +
+                "module='" + module + '\'' +
+                ", image='" + image + '\'' +
+                ", host='" + host + '\'' +
+                ", port=" + port +
+                ", actions=" + actions +
+                ", triggers=" + triggers +
+                ", pipelines=" + pipelines +
+                '}';
     }
 }

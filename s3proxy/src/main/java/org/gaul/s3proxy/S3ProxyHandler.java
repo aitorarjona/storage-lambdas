@@ -86,11 +86,11 @@ import com.google.common.net.PercentEscaper;
 
 import org.apache.commons.fileupload.MultipartStream;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpRequest;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
@@ -101,7 +101,6 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.gaul.s3proxy.actionrepo.ActionConnector;
 import org.gaul.s3proxy.actionrepo.ActionRepository;
 import org.gaul.s3proxy.actionrepo.exceptions.ActionHandlerException;
-import org.gaul.s3proxy.actionrepo.stubs.Gateway;
 import org.gaul.s3proxy.actionrepo.stubs.Module;
 import org.jclouds.blobstore.BlobStore;
 import org.jclouds.blobstore.KeyNotFoundException;
@@ -135,7 +134,6 @@ import org.slf4j.LoggerFactory;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
 
 /**
  * HTTP server-independent handler for S3 requests.
@@ -328,7 +326,7 @@ public class S3ProxyHandler {
             }
         }
 
-        logger.debug("request: {}", request);
+        logger.info("request: {}", request);
         String hostHeader = request.getHeader(HttpHeaders.HOST);
         if (hostHeader != null && virtualHost.isPresent()) {
             hostHeader = HostAndPort.fromString(hostHeader).getHost();
@@ -382,7 +380,7 @@ public class S3ProxyHandler {
                 request.getParameter("X-Amz-Date") == null &&
                 request.getParameter("Expires") == null) {
             throw new S3Exception(S3ErrorCode.ACCESS_DENIED, "AWS authentication requires a valid Date or" +
-                            " x-amz-date header");
+                    " x-amz-date header");
         }
 
         BlobStore blobStore;
@@ -1706,14 +1704,15 @@ public class S3ProxyHandler {
 
         addCorsResponseHeader(request, response);
 
-        String query = request.getParameter("query");
+        String fullKey = "/" + containerName + "/" + blobName;
+
+        String action = request.getParameter("action");
         String blobContentType = null;
-        if (query != null && this.actionRepository != null) {
+        if (action != null && this.actionRepository != null) {
             if (jedisPool != null) {
                 Jedis jedis = jedisPool.getResource();
-                String key = "/" + containerName + "/" + blobName;
-                logger.info("Getting meta from Redis (key={})", key);
-                blobContentType = jedis.hget(key, "Content-Type");
+                logger.info("Getting meta from Redis (key={})", fullKey);
+                blobContentType = jedis.hget(fullKey, "Content-Type");
                 jedis.close();
             }
 
@@ -1727,25 +1726,24 @@ public class S3ProxyHandler {
                 addMetadataToResponse(request, response, blobMetadata);
             }
 
-            ActionConnector act;
+            ActionConnector actionConnector;
             try {
-                act = this.actionRepository.getConsumeAction(blobContentType, query);
+                actionConnector = this.actionRepository.getAction(blobContentType, action);
             } catch (ActionHandlerException e) {
-                throw new S3Exception(S3ErrorCode.INVALID_ARGUMENT, "Cannot apply query " + query + " to object type "
+                throw new S3Exception(S3ErrorCode.INVALID_ARGUMENT, "Cannot apply action " + action + " to object type "
                         + blobContentType);
             }
-            logger.info("Applying action " + query + " to GET request");
-            Gateway gateway = act.getModule().getGateway();
+            logger.info("Applying action " + action + " to GET request");
 
             URI uri;
             try {
                 URIBuilder builder = new URIBuilder()
                         .setScheme("http")
-                        .setHost(gateway.getHost())
-                        .setPort(gateway.getPort())
-                        .setPath("/apply/" + act.getName());
-                for (Map.Entry<String, String[]> param: request.getParameterMap().entrySet()) {
-                    if (param.getKey().equalsIgnoreCase("query")) {
+                        .setHost(actionConnector.getModule().getHost())
+                        .setPort(actionConnector.getModule().getPort())
+                        .setPath("/apply/" + action);
+                for (Map.Entry<String, String[]> param : request.getParameterMap().entrySet()) {
+                    if (param.getKey().equalsIgnoreCase("action")) {
                         continue;
                     }
                     builder.setParameter(param.getKey(), param.getValue()[0]);
@@ -1754,7 +1752,7 @@ public class S3ProxyHandler {
 //                logger.info(uri.toString());
             } catch (URISyntaxException e) {
                 e.printStackTrace();
-                throw new IOException();
+                throw new S3Exception(S3ErrorCode.INVALID_ARGUMENT);
             }
 
             HttpClientContext context = HttpClientContext.create();
@@ -1764,6 +1762,10 @@ public class S3ProxyHandler {
             proxyRequest.setHeader("amz-s3proxy-key", blobName);
 
             CloseableHttpResponse proxyResponse = this.httpClient.execute(proxyRequest, context);
+
+            if (proxyResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+                throw new S3Exception(S3ErrorCode.INTERNAL_SERVER_ERROR);
+            }
 
             response.setContentLength(-1);
             response.setHeader("Transfer-Encoding", "chunked");
@@ -1989,30 +1991,31 @@ public class S3ProxyHandler {
         String contentType = request.getContentType();
         if (jedisPool != null && contentType != null) {
             Jedis jedis = jedisPool.getResource();
-            String key = "/" + containerName + "/" + blobName;
-            logger.info("Set metadata to Redis (key={})", key);
-            jedis.hset(key, "Content-Type", contentType);
+            String fullKey = "/" + containerName + "/" + blobName;
+            logger.info("Set metadata to Redis (key={})", fullKey);
+            jedis.hset(fullKey, "Content-Type", contentType);
             jedis.close();
         }
 
-        Module mod = null;
-        if (this.actionRepository != null) {
-            try {
-                mod = this.actionRepository.getPreprocessAction(request.getContentType());
-            } catch (ActionHandlerException e) {
-                logger.debug("Object does not have preprocess handler");
-            }
-        }
+        String action = request.getParameter("action");
 
-        if (mod != null) {
-            Gateway gateway = mod.getGateway();
+        if (action != null) {
+            ActionConnector actionConnector;
+            try {
+                actionConnector = this.actionRepository.getAction(contentType, action);
+            } catch (ActionHandlerException e) {
+                throw new S3Exception(S3ErrorCode.INVALID_ARGUMENT, "Cannot apply action " + action + " to object type "
+                        + contentType);
+            }
+            logger.info("Applying action " + action + " to PUT request");
+
             URI uri = null;
             try {
                 uri = new URIBuilder()
                         .setScheme("http")
-                        .setHost(gateway.getHost())
-                        .setPort(gateway.getPort())
-                        .setPath("/preprocess")
+                        .setHost(actionConnector.getModule().getHost())
+                        .setPort(actionConnector.getModule().getPort())
+                        .setPath("/action/" + action)
                         .build();
             } catch (URISyntaxException e) {
                 e.printStackTrace();
@@ -2020,7 +2023,7 @@ public class S3ProxyHandler {
 
             HttpClientContext context = HttpClientContext.create();
 
-            HttpPost proxyRequest = new HttpPost(uri);
+            HttpPut proxyRequest = new HttpPut(uri);
             proxyRequest.setHeader("amz-s3proxy-bucket", containerName);
             proxyRequest.setHeader("amz-s3proxy-key", blobName);
 
@@ -2029,6 +2032,10 @@ public class S3ProxyHandler {
             streamEntity.setContentType(request.getContentType());
             proxyRequest.setEntity(streamEntity);
             CloseableHttpResponse proxyResponse = this.httpClient.execute(proxyRequest, context);
+
+            if (proxyResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+                throw new IOException();
+            }
 
             HttpEntity entity = proxyResponse.getEntity();
             String etag = null;

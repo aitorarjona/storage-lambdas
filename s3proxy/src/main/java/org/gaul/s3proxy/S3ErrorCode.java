@@ -90,7 +90,8 @@ enum S3ErrorCode {
     SIGNATURE_DOES_NOT_MATCH(HttpServletResponse.SC_FORBIDDEN, "Forbidden"),
     X_AMZ_CONTENT_S_H_A_256_MISMATCH(HttpServletResponse.SC_BAD_REQUEST,
             "The provided 'x-amz-content-sha256' header does not match what" +
-            " was computed.");
+            " was computed."),
+    INTERNAL_SERVER_ERROR(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Internal server error");
 
     private final String errorCode;
     private final int httpStatusCode;

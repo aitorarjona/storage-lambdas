@@ -1,18 +1,21 @@
 package org.gaul.s3proxy.actionrepo;
 
+import org.gaul.s3proxy.actionrepo.stubs.Action;
 import org.gaul.s3proxy.actionrepo.stubs.Module;
 
 import java.util.List;
 
 public class ActionConnector {
+    private final Action action;
     private Module module;
-    private String name;
-    private List<String> parameters;
 
-    public ActionConnector(Module module, String name, List<String> parameters) {
+    public ActionConnector(Module module, Action action) {
         this.module = module;
-        this.name = name;
-        this.parameters = parameters;
+        this.action = action;
+    }
+
+    public Action getAction() {
+        return action;
     }
 
     public Module getModule() {
@@ -23,19 +26,11 @@ public class ActionConnector {
         this.module = module;
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public List<String> getParameters() {
-        return parameters;
-    }
-
-    public void setParameters(List<String> parameters) {
-        this.parameters = parameters;
+    @Override
+    public String toString() {
+        return "ActionConnector{" +
+                "action=" + action +
+                ", module=" + module +
+                '}';
     }
 }

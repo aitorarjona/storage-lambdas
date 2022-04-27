@@ -2,18 +2,18 @@ package org.gaul.s3proxy.actionrepo.stubs;
 
 import java.util.List;
 
-public class Action {
+public class Method {
     private String name;
-    private List<String> types;
+    private String returns;
     private List<String> args;
 
-    public Action(String name, List<String> mimeTypes, List<String> args) {
+    public Method(String name, String returns, List<String> args) {
         this.name = name;
-        this.types = mimeTypes;
+        this.returns = returns;
         this.args = args;
     }
 
-    public Action() {
+    public Method() {
     }
 
     public String getName() {
@@ -24,12 +24,12 @@ public class Action {
         this.name = name;
     }
 
-    public List<String> getTypes() {
-        return types;
+    public String getReturns() {
+        return returns;
     }
 
-    public void setTypes(List<String> types) {
-        this.types = types;
+    public void setReturns(String returns) {
+        this.returns = returns;
     }
 
     public List<String> getArgs() {
@@ -42,9 +42,9 @@ public class Action {
 
     @Override
     public String toString() {
-        return "Action{" +
+        return "Method{" +
                 "name='" + name + '\'' +
-                ", types=" + types +
+                ", returns='" + returns + '\'' +
                 ", args=" + args +
                 '}';
     }
