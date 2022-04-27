@@ -4,7 +4,7 @@ import secrets
 import time
 import logging
 
-from pys3proxy.handler import HandlerBase
+from storage_lambda_ric.handler import HandlerBase
 
 logger = logging.getLogger(__name__)
 
@@ -113,12 +113,12 @@ class LASModule(HandlerBase):
         t1 = time.perf_counter()
         logger.debug(f'--- end las2laz (total time: {t1 - t0}) ---')
 
-    async def getXY(self, min_X, min_Y, max_X, max_Y):
-        logger.debug('--- start getXY ---')
+    async def filter_inside_XY(self, min_X, min_Y, max_X, max_Y):
+        logger.debug('--- start filter_inside_XY ---')
         t0 = time.perf_counter()
 
         proc = await asyncio.create_subprocess_shell(
-            cmd=f'las2las -verbose -stdin -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}',
+            cmd=f'bin/las2las -verbose -stdin -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}',
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
@@ -147,4 +147,4 @@ class LASModule(HandlerBase):
 
         # logger.debug('preprocessing ended')
         t1 = time.perf_counter()
-        logger.debug(f'--- end getXY --- (took {t1 - t0} s)')
+        logger.debug(f'--- end filter_inside_XY --- (took {t1 - t0} s)')

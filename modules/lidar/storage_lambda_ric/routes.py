@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from lidar import LASModule
 import traceback
 import os
 import logging
@@ -8,32 +8,22 @@ from sanic.response import json
 from redis import asyncio as aioredis
 
 from .streamwriter import MultipartUploader
+from .params import Params
 
 app = Sanic(name="test")
 logger = logging.getLogger(__name__)
 
-from lidar import LASModule
 
-@dataclass
-class Params:
-    s3_access_key_id: str
-    s3_secret_access_key: str
-    s3_endpoint_url: str
-    redis_url: str
-    redis_password: str
+@app.route('/apply/<function_name:str>', methods=["PUT"], stream=True)
+async def apply_on_put(request):
+    GLOBAL_PARAMS = Params(
+        s3_endpoint_url=os.environ['S3_ENDPOINT_URL'],
+        s3_access_key_id=os.environ['S3_ACCESS_KEY_ID'],
+        s3_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY'],
+        redis_url=os.environ.get('REDIS_URL'),
+        redis_password=os.environ.get('REDIS_PASSWORD')
+    )
 
-globalParams = Params(
-    s3_endpoint_url=os.environ['S3_ENDPOINT_URL'],
-    s3_access_key_id=os.environ['S3_ACCESS_KEY_ID'],
-    s3_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY'],
-    redis_url=os.environ.get('REDIS_URL'),
-    redis_password=os.environ.get('REDIS_PASSWORD')
-)
-
-
-@app.route('/preprocess', methods=["POST"], stream=True)
-async def preprocess(request):
-    global globalParams
     session = AioSession()
 
     bucket = request.headers['amz-s3proxy-bucket']
@@ -41,14 +31,14 @@ async def preprocess(request):
     content_type = request.headers['Content-Type']
 
     redis_client = await aioredis.from_url(
-        globalParams.redis_url,
-        password=globalParams.redis_password
+        GLOBAL_PARAMS.redis_url,
+        password=GLOBAL_PARAMS.redis_password
     )
 
     async with session.create_client(
-        's3', endpoint_url=globalParams.s3_endpoint_url,
-            aws_access_key_id=globalParams.s3_access_key_id,
-            aws_secret_access_key=globalParams.s3_secret_access_key) as s3_client:
+        's3', endpoint_url=GLOBAL_PARAMS.s3_endpoint_url,
+            aws_access_key_id=GLOBAL_PARAMS.s3_access_key_id,
+            aws_secret_access_key=GLOBAL_PARAMS.s3_secret_access_key) as s3_client:
 
         multipart_writer = MultipartUploader(s3_client, bucket, key, content_type=content_type)
         await multipart_writer._setup()
@@ -64,8 +54,14 @@ async def preprocess(request):
 
 
 @app.route('/apply/<function_name:str>', methods=["GET"], stream=True)
-async def apply(request, function_name):
-    global globalParams
+async def apply_on_get(request, function_name):
+    GLOBAL_PARAMS = Params(
+        s3_endpoint_url=os.environ['S3_ENDPOINT_URL'],
+        s3_access_key_id=os.environ['S3_ACCESS_KEY_ID'],
+        s3_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY'],
+        redis_url=os.environ.get('REDIS_URL'),
+        redis_password=os.environ.get('REDIS_PASSWORD')
+    )
     session = AioSession()
 
     bucket = request.headers['amz-s3proxy-bucket']
@@ -73,19 +69,19 @@ async def apply(request, function_name):
     kwargs = {k: v.pop() for k, v in request.args.items()}
 
     logger.info('GET %s %s %s %s', function_name, bucket, key, str(kwargs))
-    # print(globalParams)
+    # print(GLOBAL_PARAMS)
 
     # redis_client = await aioredis.from_url(
-    #     globalParams.redis_url,
-    #     password=globalParams.redis_password
+    #     GLOBAL_PARAMS.redis_url,
+    #     password=GLOBAL_PARAMS.redis_password
     # )
     redis_client = None
     response = await request.respond(content_type="application/octet-stream")
 
     async with session.create_client(
-        's3', endpoint_url=globalParams.s3_endpoint_url,
-            aws_access_key_id=globalParams.s3_access_key_id,
-            aws_secret_access_key=globalParams.s3_secret_access_key) as s3_client:
+        's3', endpoint_url=GLOBAL_PARAMS.s3_endpoint_url,
+            aws_access_key_id=GLOBAL_PARAMS.s3_access_key_id,
+            aws_secret_access_key=GLOBAL_PARAMS.s3_secret_access_key) as s3_client:
 
         s3_response = await s3_client.get_object(Bucket=bucket, Key=key)
 
