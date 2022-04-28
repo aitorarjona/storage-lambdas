@@ -1760,12 +1760,15 @@ public class S3ProxyHandler {
             HttpGet proxyRequest = new HttpGet(uri);
             proxyRequest.setHeader("amz-s3proxy-bucket", containerName);
             proxyRequest.setHeader("amz-s3proxy-key", blobName);
+            proxyRequest.setHeader("amz-s3proxy-content-type", blobContentType);
 
             CloseableHttpResponse proxyResponse = this.httpClient.execute(proxyRequest, context);
 
-            if (proxyResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+            int statusCode = proxyResponse.getStatusLine().getStatusCode();
+            if (statusCode != HttpStatus.SC_OK) {
                 throw new S3Exception(S3ErrorCode.INTERNAL_SERVER_ERROR);
             }
+            logger.info(uri.toString(), statusCode, fullKey);
 
             response.setContentLength(-1);
             response.setHeader("Transfer-Encoding", "chunked");
