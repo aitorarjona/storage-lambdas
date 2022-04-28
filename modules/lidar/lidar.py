@@ -3,9 +3,11 @@ import aiofiles
 import asyncio
 import secrets
 import time
+import os
 import logging
+import hashlib
 
-from storage_lambda_ric.handler import HandlerBase
+from storage_lambda_ric.handler import HandlerBase, Method
 
 logger = logging.getLogger(__name__)
 
@@ -135,38 +137,81 @@ class LASModule(HandlerBase):
         logger.debug('--- start filter_inside_XY ---')
         t0 = time.perf_counter()
 
-        proc = await asyncio.create_subprocess_shell(
-            cmd=f'bin/las2las -verbose -stdin -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}',
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        key = hashlib.md5(self.full_key.encode('utf-8')).hexdigest()
+        tmp_file_name = f'/tmp/{key}'
 
-        async def input_writer():
-            input_chunk = await self.input_stream.read(65536)
-            while input_chunk != b'':
-                if not proc.stdin.is_closing():
-                    proc.stdin.write(input_chunk)
-                input_chunk = await self.input_stream.read(65536)
-            if not proc.stdin.is_closing() and proc.stdin.can_write_eof():
-                proc.stdin.write_eof()
-            logger.debug('done writing input')
+        if index_data := await self.redis_client.hget(self.full_key, 'las_index'):
+            logger.debug('using las index')
 
-        async def output_reader():
-            output_chunk = await proc.stdout.read()
-            while output_chunk != b'':
-                await self.output_stream.write(output_chunk)
+            if not os.path.exists(tmp_file_name + '.lax'):
+                async with aiofiles.open(tmp_file_name + '.lax', 'wb') as f:
+                    await f.write(index_data)
+
+            if not os.path.exists(tmp_file_name + '.las'):
+                logger.debug('data not found in cache, getting from stream...')
+                async with aiofiles.open(tmp_file_name + '.las', 'wb') as f:
+                    input_chunk = await self.input_stream.read(65536)
+                    while input_chunk != b'':
+                        await f.write(input_chunk)
+                        input_chunk = await self.input_stream.read(65536)
+
+            cmd = f'bin/las2las -verbose -i {tmp_file_name}.las -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}'
+            proc = await asyncio.create_subprocess_shell(
+                cmd=cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+
+            try:
                 output_chunk = await proc.stdout.read()
-            await self.output_stream.flush()
-            logger.debug('done reading output')
+                while output_chunk != b'':
+                    await self.output_stream.write(output_chunk)
+                    output_chunk = await proc.stdout.read()
+                await self.output_stream.flush()
+                logger.debug('done reading output')
+            finally:
+                logger.debug('joining child process')
+                out, err = await proc.communicate()
+                logger.debug(out)
+                logger.debug(err)
+            
+            # os.remove(tmp_file_name + '.las')
+            # os.remove(tmp_file_name + '.lax')
+        else:
+            logger.debug('index not found - reading all points')
 
-        try:
-            await asyncio.gather(input_writer(), output_reader())
-        finally:
-            out, err = await proc.communicate()
-            logger.debug(out)
-            logger.debug(err)
+            proc = await asyncio.create_subprocess_shell(
+                cmd=f'bin/las2las -verbose -stdin -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}',
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
 
-        # logger.debug('preprocessing ended')
+            async def input_writer():
+                input_chunk = await self.input_stream.read(65536)
+                while input_chunk != b'':
+                    if not proc.stdin.is_closing():
+                        proc.stdin.write(input_chunk)
+                    input_chunk = await self.input_stream.read(65536)
+                if not proc.stdin.is_closing() and proc.stdin.can_write_eof():
+                    proc.stdin.write_eof()
+                logger.debug('done writing input')
+
+            async def output_reader():
+                output_chunk = await proc.stdout.read()
+                while output_chunk != b'':
+                    await self.output_stream.write(output_chunk)
+                    output_chunk = await proc.stdout.read()
+                await self.output_stream.flush()
+                logger.debug('done reading output')
+
+            try:
+                await asyncio.gather(input_writer(), output_reader())
+            finally:
+                out, err = await proc.communicate()
+                logger.debug(out)
+                logger.debug(err)
+
         t1 = time.perf_counter()
         logger.debug(f'--- end filter_inside_XY --- (took {t1 - t0} s)')

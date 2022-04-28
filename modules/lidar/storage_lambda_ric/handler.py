@@ -1,3 +1,9 @@
+from enum import Enum
+
+
+class Method(Enum):
+    PUT = "PUT"
+    GET = "GET"
 
 
 class HandlerBase:
@@ -9,7 +15,9 @@ class HandlerBase:
                  redis_client=None,
                  key=None,
                  bucket=None,
-                 content_type=None):
+                 content_type=None,
+                 cache=None,
+                 method=None):
         self.request = request
         self.response = response
         self.input_stream = input_stream
@@ -19,6 +27,8 @@ class HandlerBase:
         self.bucket = bucket
         self.content_type = content_type
         self.full_key = '/' + bucket + '/' + key
+        self.cache = cache
+        self.method = method
     
     def preprocess(self):
         raise NotImplementedError()

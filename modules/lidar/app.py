@@ -1,10 +1,7 @@
 import os
 import logging
-import asyncio
-from signal import signal, SIGINT
 
 from storage_lambda_ric.routes import app
-from storage_lambda_ric.params import Params, GLOBAL_PARAMS
 
 
 
