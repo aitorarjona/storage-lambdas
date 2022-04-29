@@ -47,7 +47,8 @@ class LASModule(HandlerBase):
                     index_proc.stdin.write(input_chunk)
                 if not info_proc.stdin.is_closing():
                     info_proc.stdin.write(input_chunk)
-                asyncio.create_task(self.output_stream.write(input_chunk))
+                # asyncio.create_task(self.output_stream.write(input_chunk))
+                await self.output_stream.write(input_chunk)
             if not index_proc.stdin.is_closing() and index_proc.stdin.can_write_eof():
                 index_proc.stdin.write_eof()
             # if not index_proc.stdin.is_closing() and info_proc.stdin.can_write_eof():

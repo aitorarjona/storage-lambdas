@@ -18,12 +18,12 @@ cache = Cache("/tmp/diskcache")
 
 
 @app.route('/apply/<function_name:str>', methods=["PUT"], stream=True)
-async def apply_on_put(function_name, request):
+async def apply_on_put(request, function_name):
     session = AioSession()
 
     bucket = request.headers['amz-s3proxy-bucket']
     key = request.headers['amz-s3proxy-key']
-    content_type = request.headers['amz-s3proxy-content-type']
+    content_type = request.headers['Content-Type']
     kwargs = {k: v.pop() for k, v in request.args.items()}
 
     logger.info('PUT %s %s %s %s', function_name, bucket, key, str(kwargs))

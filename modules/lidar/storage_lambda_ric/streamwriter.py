@@ -64,7 +64,7 @@ class MultipartUploader:
             logger.debug(upload_part_res)
             self.__parts.append({
                 'PartNumber': self.__part_count,
-                'ETag': upload_part_res[upload_part_res['ETag']]
+                'ETag': upload_part_res['ETag']
             })
             self.__part_count += 1
             rest = self.__buff.read(buff_sz - self.PART_SIZE)
