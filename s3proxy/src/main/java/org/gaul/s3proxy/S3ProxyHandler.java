@@ -577,7 +577,7 @@ public class S3ProxyHandler {
                         payload = new byte[0];
                     } else if ("STREAMING-AWS4-HMAC-SHA256-PAYLOAD".equals(contentSha256)) {
                         payload = new byte[0];
-                        is = new ChunkedInputStream(is);
+//                        is = new ChunkedInputStream(is);
                     } else if ("UNSIGNED-PAYLOAD".equals(contentSha256)) {
                         payload = new byte[0];
                     } else {
@@ -2018,7 +2018,7 @@ public class S3ProxyHandler {
                         .setScheme("http")
                         .setHost(actionConnector.getModule().getHost())
                         .setPort(actionConnector.getModule().getPort())
-                        .setPath("/action/" + action)
+                        .setPath("/apply/" + action)
                         .build();
             } catch (URISyntaxException e) {
                 e.printStackTrace();
