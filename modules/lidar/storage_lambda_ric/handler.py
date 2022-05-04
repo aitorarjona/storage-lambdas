@@ -16,7 +16,6 @@ class HandlerBase:
                  key=None,
                  bucket=None,
                  content_type=None,
-                 cache=None,
                  method=None):
         self.request = request
         self.response = response
@@ -27,7 +26,6 @@ class HandlerBase:
         self.bucket = bucket
         self.content_type = content_type
         self.full_key = '/' + bucket + '/' + key
-        self.cache = cache
         self.method = method
     
     def preprocess(self):

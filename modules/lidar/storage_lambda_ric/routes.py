@@ -6,15 +6,12 @@ from aiobotocore.session import AioSession
 from sanic import Sanic
 from sanic.response import json
 from redis import asyncio as aioredis
-from diskcache import Cache
 
 from .handler import Method
 from .streamwriter import MultipartUploader, StreamResponseWrapper
 
 app = Sanic(name="test")
 logger = logging.getLogger(__name__)
-
-cache = Cache("/tmp/diskcache")
 
 
 @app.route('/apply/<function_name:str>', methods=["PUT"], stream=True)
@@ -50,7 +47,6 @@ async def apply_on_put(request, function_name):
                         key=key,
                         bucket=bucket,
                         content_type=content_type,
-                        cache=cache,
                         method=Method.PUT)
         try:
             func = getattr(mod, function_name)
@@ -100,7 +96,6 @@ async def apply_on_get(request, function_name):
                         key=key,
                         bucket=bucket,
                         content_type=content_type,
-                        cache=cache,
                         method=Method.GET)
         try:
             func = getattr(mod, function_name)

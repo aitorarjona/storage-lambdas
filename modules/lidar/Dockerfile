@@ -22,7 +22,7 @@ ADD requirements.txt requirements.txt
 RUN pip install -r requirements.txt && rm requirements.txt
 
 ADD app.py lidar.py ./
-COPY pys3proxy pys3proxy
+COPY storage_lambda_ric storage_lambda_ric
 
 CMD python app.py
 
