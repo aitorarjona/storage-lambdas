@@ -6,15 +6,12 @@ from aiobotocore.session import AioSession
 from sanic import Sanic
 from sanic.response import json
 from redis import asyncio as aioredis
-from diskcache import Cache
 
 from .handler import Method
 from .streamwriter import MultipartUploader, StreamResponseWrapper
 
 app = Sanic(name="test")
 logger = logging.getLogger(__name__)
-
-cache = Cache("/tmp/diskcache")
 
 
 @app.route('/apply/<function_name:str>', methods=["PUT"], stream=True)
@@ -40,7 +37,8 @@ async def apply_on_put(request, function_name):
         aws_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY']
     ) as s3_client:
 
-        multipart_writer = MultipartUploader(s3_client, bucket, key, content_type=content_type)
+        multipart_writer = MultipartUploader(
+            s3_client, bucket, key, content_type=content_type)
         await multipart_writer._setup()
 
         mod = LASModule(request=request,
@@ -50,7 +48,6 @@ async def apply_on_put(request, function_name):
                         key=key,
                         bucket=bucket,
                         content_type=content_type,
-                        cache=cache,
                         method=Method.PUT)
         try:
             func = getattr(mod, function_name)
@@ -88,19 +85,16 @@ async def apply_on_get(request, function_name):
         aws_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY']
     ) as s3_client:
 
-        s3_response = await s3_client.get_object(Bucket=bucket, Key=key)
-        streaming_body = s3_response['Body']
         response_stream = StreamResponseWrapper(response)
 
         mod = LASModule(request=request,
                         response=response,
-                        input_stream=streaming_body,
                         output_stream=response_stream,
                         redis_client=redis_client,
+                        s3_client=s3_client,
                         key=key,
                         bucket=bucket,
                         content_type=content_type,
-                        cache=cache,
                         method=Method.GET)
         try:
             func = getattr(mod, function_name)

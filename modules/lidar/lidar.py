@@ -23,14 +23,14 @@ class LASModule(HandlerBase):
         tmp_file_name = f'/tmp/tmpindex-{tmp_token}.lax'
 
         index_proc = await asyncio.create_subprocess_shell(
-            cmd=f'bin/lasindex -stdin -o {tmp_file_name}',
+            cmd=f'lasindex -stdin -o {tmp_file_name}',
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
 
         info_proc = await asyncio.create_subprocess_shell(
-            cmd=f'bin/lasinfo -stdin -no_check -no_vlrs -stdout',
+            cmd=f'lasinfo -stdin -no_check -no_vlrs -stdout',
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
@@ -100,7 +100,7 @@ class LASModule(HandlerBase):
         t0 = time.perf_counter()
 
         proc = await asyncio.create_subprocess_shell(
-            cmd='bin/laszip -stdin -stdout -olaz',
+            cmd='laszip -stdin -stdout -olaz',
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
@@ -145,18 +145,28 @@ class LASModule(HandlerBase):
             logger.debug('using las index')
 
             if not os.path.exists(tmp_file_name + '.lax'):
+                logger.debug('index not found in cache, getting from redis...')
                 async with aiofiles.open(tmp_file_name + '.lax', 'wb') as f:
                     await f.write(index_data)
 
-            if not os.path.exists(tmp_file_name + '.las'):
-                logger.debug('data not found in cache, getting from stream...')
-                async with aiofiles.open(tmp_file_name + '.las', 'wb') as f:
-                    input_chunk = await self.input_stream.read(65536)
-                    while input_chunk != b'':
-                        await f.write(input_chunk)
-                        input_chunk = await self.input_stream.read(65536)
+            try:
+                lock = self.redis_client.lock(self.full_key + '.lock')
+                logger.debug('acquiring lock...')
+                await lock.acquire()
+                if not os.path.exists(tmp_file_name + '.las'):
+                        logger.debug('lock acquired')
+                        logger.debug('data not found in cache, getting from stream...')
+                        await self.do_get()
+                        async with aiofiles.open(tmp_file_name + '.las', 'wb') as f:
+                            input_chunk = await self.input_stream.read(65536)
+                            while input_chunk != b'':
+                                await f.write(input_chunk)
+                                input_chunk = await self.input_stream.read(65536)
+            finally:
+                logger.debug('releasing lock...')
+                await lock.release()
 
-            cmd = f'bin/las2las -verbose -i {tmp_file_name}.las -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}'
+            cmd = f'las2las -verbose -i {tmp_file_name}.las -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}'
             proc = await asyncio.create_subprocess_shell(
                 cmd=cmd,
                 stdin=asyncio.subprocess.PIPE,
@@ -183,7 +193,7 @@ class LASModule(HandlerBase):
             logger.debug('index not found - reading all points')
 
             proc = await asyncio.create_subprocess_shell(
-                cmd=f'bin/las2las -verbose -stdin -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}',
+                cmd=f'las2las -verbose -stdin -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}',
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
