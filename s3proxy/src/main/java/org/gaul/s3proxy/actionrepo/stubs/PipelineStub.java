@@ -2,16 +2,16 @@ package org.gaul.s3proxy.actionrepo.stubs;
 
 import java.util.List;
 
-public class Pipeline {
+public class PipelineStub {
     private String name;
     private List<String> pipeline;
 
-    public Pipeline(String name, List<String> pipeline) {
+    public PipelineStub(String name, List<String> pipeline) {
         this.name = name;
         this.pipeline = pipeline;
     }
 
-    public Pipeline() {
+    public PipelineStub() {
 
     }
 

@@ -99,10 +99,6 @@ public final class S3ProxyConstants {
      * Maximum time skew allowed in signed requests.
      */
     public static final String PROPERTY_MAXIMUM_TIME_SKEW = "s3proxy.maximum-timeskew";
-    /**
-     * Active S3 manifest file path
-     */
-    static final String ACTIVE_S3_MANIFEST_PATH = "actives3proxy.manifest";
 
     /**
      * Redis config parameters

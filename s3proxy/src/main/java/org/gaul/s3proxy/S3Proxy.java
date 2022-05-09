@@ -113,8 +113,7 @@ public final class S3Proxy {
                 builder.virtualHost, builder.maxSinglePartObjectSize,
                 builder.v4MaxNonChunkedRequestSize, builder.gatewayHost,
                 builder.ignoreUnknownHeaders, builder.corsRules,
-                builder.servicePath, builder.maximumTimeSkew,
-                builder.actionRepository, builder.jedisPool
+                builder.servicePath, builder.maximumTimeSkew, builder.jedisPool
         );
         server.setHandler(handler);
     }
@@ -256,15 +255,6 @@ public final class S3Proxy {
             String maximumTimeSkew = properties.getProperty(S3ProxyConstants.PROPERTY_MAXIMUM_TIME_SKEW);
             if (maximumTimeSkew != null) {
                 builder.maximumTimeSkew(Integer.parseInt(maximumTimeSkew));
-            }
-
-            String activeS3ManifestPath = properties.getProperty(S3ProxyConstants.ACTIVE_S3_MANIFEST_PATH);
-            if (activeS3ManifestPath != null) {
-                try {
-                    builder.actionRepository = ActionRepository.fromYAML(new File(activeS3ManifestPath));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
             }
 
             String redisHost = properties.getProperty(S3ProxyConstants.REDIS_HOST);

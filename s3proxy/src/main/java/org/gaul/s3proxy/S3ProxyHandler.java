@@ -85,11 +85,11 @@ import com.google.common.net.HttpHeaders;
 import com.google.common.net.PercentEscaper;
 
 import org.apache.commons.fileupload.MultipartStream;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
@@ -101,7 +101,6 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.gaul.s3proxy.actionrepo.ActionConnector;
 import org.gaul.s3proxy.actionrepo.ActionRepository;
 import org.gaul.s3proxy.actionrepo.exceptions.ActionHandlerException;
-import org.gaul.s3proxy.actionrepo.stubs.Module;
 import org.jclouds.blobstore.BlobStore;
 import org.jclouds.blobstore.KeyNotFoundException;
 import org.jclouds.blobstore.domain.Blob;
@@ -126,7 +125,6 @@ import org.jclouds.io.ContentMetadataBuilder;
 import org.jclouds.io.Payload;
 import org.jclouds.io.Payloads;
 import org.jclouds.rest.AuthorizationException;
-import org.jclouds.s3.S3;
 import org.jclouds.s3.domain.ObjectMetadata.StorageClass;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -227,14 +225,12 @@ public class S3ProxyHandler {
     private final BlobStore defaultBlobStore;
 
     // active s3 proxy
-    private final ActionRepository actionRepository;
+    private final Map<String, ActionRepository> actionRepositoryMap;
     private final CloseableHttpClient httpClient;
 
     // redis client
     private final JedisPool jedisPool;
-//    private final JedisPoolConfig poolConfig = new JedisPoolConfig();
-//    private final JedisPool jedisPool = new JedisPool(poolConfig, "192.168.1.144", 6379, 250,
-//            "redispassword123");
+
     /**
      * S3 supports arbitrary keys for the marker while some blobstores only
      * support opaque markers.  Emulate the common case for these by mapping
@@ -251,7 +247,7 @@ public class S3ProxyHandler {
                           @Nullable String gatewayHost, boolean ignoreUnknownHeaders,
                           @Nullable CrossOriginResourceSharing corsRules,
                           final String servicePath, int maximumTimeSkew,
-                          ActionRepository actionRepository, JedisPool jedisPool) {
+                          JedisPool jedisPool) {
         if (corsRules != null) {
             this.corsRules = corsRules;
         } else {
@@ -290,8 +286,31 @@ public class S3ProxyHandler {
         xmlOutputFactory.setProperty("javax.xml.stream.isRepairingNamespaces", Boolean.FALSE);
         this.servicePath = Strings.nullToEmpty(servicePath);
         this.maximumTimeSkew = maximumTimeSkew;
-        this.actionRepository = actionRepository;
         this.jedisPool = jedisPool;
+        this.actionRepositoryMap = new HashMap<>();
+
+        PageSet<StorageMetadata> storageMetadata = (PageSet<StorageMetadata>) this.defaultBlobStore.list();
+        for (StorageMetadata metadata : storageMetadata) {
+            if (metadata.getType() == StorageType.CONTAINER) {
+                String container = metadata.getName();
+                Blob blob = this.defaultBlobStore.getBlob(container, "manifest.yaml");
+                if (blob == null) {
+                    logger.info("No manifest for container {}", container);
+                    continue;
+                }
+                logger.info("Reading manifest for container {}", container);
+                ActionRepository ac = null;
+                try {
+                    ac = ActionRepository.fromYAML(blob.getPayload().openStream());
+                } catch (IOException e) {
+                    logger.info("Exception reading manifest");
+                    e.printStackTrace();
+                }
+                if (ac != null) {
+                    this.actionRepositoryMap.put(container, ac);
+                }
+            }
+        }
 
         PoolingHttpClientConnectionManager cm = new PoolingHttpClientConnectionManager();
         this.httpClient = HttpClients.custom().setConnectionManager(cm).build();
@@ -1708,7 +1727,9 @@ public class S3ProxyHandler {
 
         String action = request.getParameter("action");
         String blobContentType = null;
-        if (action != null && this.actionRepository != null) {
+        if (action != null && this.actionRepositoryMap.containsKey(containerName)) {
+            ActionRepository actionRepo = this.actionRepositoryMap.get(containerName);
+
             if (jedisPool != null) {
                 Jedis jedis = jedisPool.getResource();
                 logger.info("Getting meta from Redis (key={})", fullKey);
@@ -1728,7 +1749,7 @@ public class S3ProxyHandler {
 
             ActionConnector actionConnector;
             try {
-                actionConnector = this.actionRepository.getAction(blobContentType, action);
+                actionConnector = actionRepo.getAction(blobContentType, action);
             } catch (ActionHandlerException e) {
                 throw new S3Exception(S3ErrorCode.INVALID_ARGUMENT, "Cannot apply action " + action + " to object type "
                         + blobContentType);
@@ -1739,8 +1760,8 @@ public class S3ProxyHandler {
             try {
                 URIBuilder builder = new URIBuilder()
                         .setScheme("http")
-                        .setHost(actionConnector.getModule().getHost())
-                        .setPort(actionConnector.getModule().getPort())
+                        .setHost(actionConnector.getModuleStub().getHost())
+                        .setPort(actionConnector.getModuleStub().getPort())
                         .setPath("/apply/" + action);
                 for (Map.Entry<String, String[]> param : request.getParameterMap().entrySet()) {
                     if (param.getKey().equalsIgnoreCase("action")) {
@@ -2001,11 +2022,12 @@ public class S3ProxyHandler {
         }
 
         String action = request.getParameter("action");
+        if (action != null && this.actionRepositoryMap.containsKey(containerName)) {
+            ActionRepository actionRepo = this.actionRepositoryMap.get(containerName);
 
-        if (action != null) {
             ActionConnector actionConnector;
             try {
-                actionConnector = this.actionRepository.getAction(contentType, action);
+                actionConnector = actionRepo.getAction(contentType, action);
             } catch (ActionHandlerException e) {
                 throw new S3Exception(S3ErrorCode.INVALID_ARGUMENT, "Cannot apply action " + action + " to object type "
                         + contentType);
@@ -2016,8 +2038,8 @@ public class S3ProxyHandler {
             try {
                 uri = new URIBuilder()
                         .setScheme("http")
-                        .setHost(actionConnector.getModule().getHost())
-                        .setPort(actionConnector.getModule().getPort())
+                        .setHost(actionConnector.getModuleStub().getHost())
+                        .setPort(actionConnector.getModuleStub().getPort())
                         .setPath("/apply/" + action)
                         .build();
             } catch (URISyntaxException e) {

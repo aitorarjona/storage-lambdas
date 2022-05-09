@@ -2,18 +2,18 @@ package org.gaul.s3proxy.actionrepo.stubs;
 
 import java.util.List;
 
-public class Method {
+public class MethodStub {
     private String name;
     private String returns;
     private List<String> args;
 
-    public Method(String name, String returns, List<String> args) {
+    public MethodStub(String name, String returns, List<String> args) {
         this.name = name;
         this.returns = returns;
         this.args = args;
     }
 
-    public Method() {
+    public MethodStub() {
     }
 
     public String getName() {

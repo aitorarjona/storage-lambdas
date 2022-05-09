@@ -1,17 +1,17 @@
 package org.gaul.s3proxy.actionrepo.stubs;
 
-public class Attribute {
+public class AttributeStub {
     private String key;
     private String type;
     private boolean required = false;
 
-    public Attribute(String key, String type, boolean required) {
+    public AttributeStub(String key, String type, boolean required) {
         this.key = key;
         this.type = type;
         this.required = required;
     }
 
-    public Attribute() {
+    public AttributeStub() {
     }
 
     public String getKey() {

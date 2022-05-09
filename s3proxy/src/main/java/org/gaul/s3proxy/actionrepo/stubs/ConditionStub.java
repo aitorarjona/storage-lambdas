@@ -1,17 +1,17 @@
 package org.gaul.s3proxy.actionrepo.stubs;
 
-public class Condition {
+public class ConditionStub {
     private String target;
     private String verb;
     private String value;
 
-    public Condition(String header, String verb, String value) {
+    public ConditionStub(String header, String verb, String value) {
         this.target = header;
         this.verb = verb;
         this.value = value;
     }
 
-    public Condition() {
+    public ConditionStub() {
     }
 
     public String getTarget() {

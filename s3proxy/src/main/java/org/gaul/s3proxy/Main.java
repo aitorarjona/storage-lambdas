@@ -268,13 +268,18 @@ public final class Main {
         }
 
         if (identity == null || credential == null) {
-            System.err.println("Properties file must contain: " + Constants.PROPERTY_IDENTITY + " and " + Constants.PROPERTY_CREDENTIAL);
+            System.err.println("Properties file must contain: " + Constants.PROPERTY_IDENTITY
+                    + " and " + Constants.PROPERTY_CREDENTIAL);
             System.exit(1);
         }
 
-        properties.setProperty(Constants.PROPERTY_USER_AGENT, String.format("s3proxy/%s jclouds/%s java/%s", Main.class.getPackage().getImplementationVersion(), JcloudsVersion.get(), System.getProperty("java.version")));
+        properties.setProperty(Constants.PROPERTY_USER_AGENT, String.format("s3proxy/%s jclouds/%s java/%s",
+                Main.class.getPackage().getImplementationVersion(),
+                JcloudsVersion.get(), System.getProperty("java.version")));
 
-        ContextBuilder builder = ContextBuilder.newBuilder(provider).credentials(identity, credential).modules(ImmutableList.<Module>of(new SLF4JLoggingModule(), new ExecutorServiceModule(executorService))).overrides(properties);
+        ContextBuilder builder = ContextBuilder.newBuilder(provider).credentials(identity, credential).modules(
+                ImmutableList.<Module>of(new SLF4JLoggingModule(),
+                        new ExecutorServiceModule(executorService))).overrides(properties);
         if (!Strings.isNullOrEmpty(endpoint)) {
             builder = builder.endpoint(endpoint);
         }

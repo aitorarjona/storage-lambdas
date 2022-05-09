@@ -2,18 +2,18 @@ package org.gaul.s3proxy.actionrepo.stubs;
 
 import java.util.List;
 
-public class Trigger {
+public class TriggerStub {
     private String method;
     private List<String> pipeline;
-    private Condition condition;
+    private ConditionStub conditionStub;
 
-    public Trigger(String method, List<String> pipeline, Condition condition) {
+    public TriggerStub(String method, List<String> pipeline, ConditionStub conditionStub) {
         this.method = method;
         this.pipeline = pipeline;
-        this.condition = condition;
+        this.conditionStub = conditionStub;
     }
 
-    public Trigger() {
+    public TriggerStub() {
     }
 
     public String getMethod() {
@@ -32,12 +32,12 @@ public class Trigger {
         this.pipeline = pipeline;
     }
 
-    public Condition getCondition() {
-        return condition;
+    public ConditionStub getCondition() {
+        return conditionStub;
     }
 
-    public void setCondition(Condition condition) {
-        this.condition = condition;
+    public void setCondition(ConditionStub conditionStub) {
+        this.conditionStub = conditionStub;
     }
 
     @Override
@@ -45,7 +45,7 @@ public class Trigger {
         return "Trigger{" +
                 "method='" + method + '\'' +
                 ", pipeline=" + pipeline +
-                ", condition=" + condition +
+                ", condition=" + conditionStub +
                 '}';
     }
 }

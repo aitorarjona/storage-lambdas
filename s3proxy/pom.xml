@@ -553,5 +553,10 @@
             <artifactId>javax.annotation-api</artifactId>
             <version>1.3.2</version>
         </dependency>
+        <dependency>
+            <groupId>io.pravega</groupId>
+            <artifactId>pravega-client</artifactId>
+            <version>0.10.2</version>
+        </dependency>
     </dependencies>
 </project>

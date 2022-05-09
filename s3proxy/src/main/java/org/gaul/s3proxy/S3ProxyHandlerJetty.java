@@ -28,7 +28,6 @@ import com.google.common.collect.ImmutableMap;
 
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
-import org.gaul.s3proxy.actionrepo.ActionRepository;
 import org.jclouds.blobstore.BlobStore;
 import org.jclouds.blobstore.ContainerNotFoundException;
 import org.jclouds.blobstore.KeyNotFoundException;
@@ -55,12 +54,11 @@ final class S3ProxyHandlerJetty extends AbstractHandler {
                         long maxSinglePartObjectSize, long v4MaxNonChunkedRequestSize,
                         @Nullable String gatewayHost, boolean ignoreUnknownHeaders,
                         CrossOriginResourceSharing corsRules, String servicePath,
-                        int maximumTimeSkew, ActionRepository actionRepository,
-                        JedisPool jedisPool) {
+                        int maximumTimeSkew, JedisPool jedisPool) {
         handler = new S3ProxyHandler(blobStore, authenticationType, identity,
                 credential, virtualHost, maxSinglePartObjectSize,
                 v4MaxNonChunkedRequestSize, gatewayHost, ignoreUnknownHeaders, corsRules,
-                servicePath, maximumTimeSkew, actionRepository, jedisPool);
+                servicePath, maximumTimeSkew, jedisPool);
     }
 
     private void sendS3Exception(HttpServletRequest request,
