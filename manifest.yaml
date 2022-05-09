@@ -1,0 +1,73 @@
+types:
+  - name: LidarLAS
+    mimeType: "application/vnd.las"
+    methods:
+      - name: extract_meta
+        returns: application/vnd.las
+      - name: las2laz
+        returns: application/vnd.laz
+      - name: filter_inside_XY
+        args: ["min_X", "min_Y", "max_X", "max_Y"]
+        returns: application/vnd.las
+      - name: tiled_partition
+        args: ["side_parts"]
+        returns: application/vnd.las
+    attributes:
+      - key: min_X
+        type: float64
+      - key: min_Y
+        type: float64
+      - key: max_X
+        type: float64
+      - key: max_Y
+        type: float64
+      - key: n_points
+        type: int32
+      - key: location
+        type: string
+  - name: LidarLAZ
+    mimeType: "application/vnd.laz"
+    extend: LAS
+    methods:
+      - name: laz2las
+        returns: application/vnd.las
+modules:
+  - module: lastools
+    image: aitorarjona/storage-lambda-lastools:dev
+    actions:
+      - name: extract_meta
+        types: ["LidarLAS", "LidarLAZ"]
+        kind: stateless
+      - name: las2laz
+        types: ["LidarLAS"]
+        kind: stateless
+      - name: laz2las
+        types: ["LidarLAZ"]
+        kind: stateless
+      - name: filter_inside_XY
+        types: ["LidarLAS", "LidarLAZ"]
+        kind: stateless
+      - name: tiled_partition
+        types: ["LidarLAS"]
+        kind: stateful
+triggers:
+  - method: PUT
+    pipeline: ["extract_meta"]
+    condition:
+      target: Content-Type
+      verb: ==
+      value: application/vnd.las
+  - method: PUT
+    pipeline: ["las2laz"]
+    condition:
+      target: Content-Type
+      verb: ==
+      value: application/vnd.las
+  - method: GET
+    pipeline: ["laz2las"]
+    condition:
+      target: Content-Type
+      verb: ==
+      value: application/vnd.las
+
+
