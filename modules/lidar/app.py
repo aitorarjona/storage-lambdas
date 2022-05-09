@@ -1,8 +1,8 @@
 import os
 import logging
 
-from storage_lambda_ric.routes import app
 
+from storage_lambda_ric.routes import app
 
 
 if __name__ == '__main__':

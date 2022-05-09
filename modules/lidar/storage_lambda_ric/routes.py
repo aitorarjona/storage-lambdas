@@ -37,7 +37,8 @@ async def apply_on_put(request, function_name):
         aws_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY']
     ) as s3_client:
 
-        multipart_writer = MultipartUploader(s3_client, bucket, key, content_type=content_type)
+        multipart_writer = MultipartUploader(
+            s3_client, bucket, key, content_type=content_type)
         await multipart_writer._setup()
 
         mod = LASModule(request=request,
@@ -84,15 +85,13 @@ async def apply_on_get(request, function_name):
         aws_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY']
     ) as s3_client:
 
-        s3_response = await s3_client.get_object(Bucket=bucket, Key=key)
-        streaming_body = s3_response['Body']
         response_stream = StreamResponseWrapper(response)
 
         mod = LASModule(request=request,
                         response=response,
-                        input_stream=streaming_body,
                         output_stream=response_stream,
                         redis_client=redis_client,
+                        s3_client=s3_client,
                         key=key,
                         bucket=bucket,
                         content_type=content_type,

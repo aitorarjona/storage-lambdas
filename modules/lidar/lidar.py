@@ -145,16 +145,26 @@ class LASModule(HandlerBase):
             logger.debug('using las index')
 
             if not os.path.exists(tmp_file_name + '.lax'):
+                logger.debug('index not found in cache, getting from redis...')
                 async with aiofiles.open(tmp_file_name + '.lax', 'wb') as f:
                     await f.write(index_data)
 
-            if not os.path.exists(tmp_file_name + '.las'):
-                logger.debug('data not found in cache, getting from stream...')
-                async with aiofiles.open(tmp_file_name + '.las', 'wb') as f:
-                    input_chunk = await self.input_stream.read(65536)
-                    while input_chunk != b'':
-                        await f.write(input_chunk)
-                        input_chunk = await self.input_stream.read(65536)
+            try:
+                lock = self.redis_client.lock(self.full_key + '.lock')
+                logger.debug('acquiring lock...')
+                await lock.acquire()
+                if not os.path.exists(tmp_file_name + '.las'):
+                        logger.debug('lock acquired')
+                        logger.debug('data not found in cache, getting from stream...')
+                        await self.do_get()
+                        async with aiofiles.open(tmp_file_name + '.las', 'wb') as f:
+                            input_chunk = await self.input_stream.read(65536)
+                            while input_chunk != b'':
+                                await f.write(input_chunk)
+                                input_chunk = await self.input_stream.read(65536)
+            finally:
+                logger.debug('releasing lock...')
+                await lock.release()
 
             cmd = f'las2las -verbose -i {tmp_file_name}.las -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}'
             proc = await asyncio.create_subprocess_shell(
