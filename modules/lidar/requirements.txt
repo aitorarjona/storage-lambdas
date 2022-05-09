@@ -1,3 +1,4 @@
 sanic
 aiobotocore
 redis>=4.2.0rc1
+pravega

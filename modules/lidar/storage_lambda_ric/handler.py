@@ -1,8 +1,34 @@
 from enum import Enum
+from functools import wraps
+from routes import app
 import logging
 
 
 logger = logging.getLogger(__name__)
+
+
+class Handler:
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+        self._stateless_actions = {}
+        self._stateful_actions = {}
+
+    def stateless_action(self, name, callable_):
+        self._stateless_actions[name] = callable_
+
+    def stateful_action(self, name, calc_parts_callable, callable_):
+        self._stateful_actions[name] = calc_parts_callable, callable_
+
+    def _get_stateless_action(self, name, context, kwargs):
+        return self._stateless_actions[name](context, **kwargs)
+
+    def _get_stateful_action(self, name, context, kwargs):
+        return self._stateful_actions[name](context, **kwargs)
+
+    def serve(self):
+        app.action_handler = self
+        app.run(host=self.host, port=self.port)
 
 
 class Method(Enum):
@@ -10,7 +36,7 @@ class Method(Enum):
     GET = "GET"
 
 
-class HandlerBase:
+class Context:
     def __init__(self,
                  request=None,
                  response=None,

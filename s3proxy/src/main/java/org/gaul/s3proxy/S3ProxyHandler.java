@@ -28,6 +28,7 @@ import java.io.Writer;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
 import java.security.InvalidKeyException;
@@ -86,6 +87,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.gaul.s3proxy.actionrepo.ActionConnector;
 import org.gaul.s3proxy.actionrepo.ActionRepository;
+import org.gaul.s3proxy.actionrepo.ActionType;
 import org.gaul.s3proxy.actionrepo.exceptions.ActionHandlerException;
 import org.jclouds.blobstore.BlobStore;
 import org.jclouds.blobstore.KeyNotFoundException;
@@ -1756,9 +1758,16 @@ public class S3ProxyHandler {
             HttpClientContext context = HttpClientContext.create();
 
             HttpGet proxyRequest = new HttpGet(uri);
+            String invokeID = "";
             proxyRequest.setHeader("amz-s3proxy-bucket", containerName);
             proxyRequest.setHeader("amz-s3proxy-key", blobName);
             proxyRequest.setHeader("amz-s3proxy-content-type", blobContentType);
+            proxyRequest.setHeader("amz-s3proxy-action-type", actionConnector.getActionStub().getKind());
+            if (actionConnector.getActionType() == ActionType.STATEFUL) {
+                invokeID = containerName + "-" + blobName +
+                        "-" + UUID.randomUUID().toString().replace("-", "");
+                proxyRequest.setHeader("amz-s3proxy-invoke-id", invokeID);
+            }
 
             CloseableHttpResponse proxyResponse = this.httpClient.execute(proxyRequest, context);
 
@@ -1768,17 +1777,32 @@ public class S3ProxyHandler {
             }
             logger.info(uri.toString(), statusCode, fullKey);
 
-            response.setContentLength(-1);
-            response.setHeader("Transfer-Encoding", "chunked");
-
             HttpEntity entity = proxyResponse.getEntity();
-            try {
-                InputStream is = entity.getContent();
-                OutputStream os = response.getOutputStream();
-                ByteStreams.copy(is, os);
-            } catch (IOException e) {
-                e.printStackTrace();
-                throw e;
+            OutputStream os;
+            switch (actionConnector.getActionType()) {
+                case STATELESS:
+                    response.setContentLength(-1);
+                    response.setHeader("Transfer-Encoding", "chunked");
+                    InputStream is = entity.getContent();
+                    os = response.getOutputStream();
+                    ByteStreams.copy(is, os);
+                    break;
+                case STATEFUL:
+                    InputStream stream = entity.getContent();
+                    byte[] data = stream.readAllBytes();
+                    JSONObject JSONProxyResponse = new JSONObject(new String(data, StandardCharsets.UTF_8));
+                    System.out.println(new String(data, StandardCharsets.UTF_8));
+                    response.setContentType("application/json");
+                    int parts = (int) JSONProxyResponse.get("parts");
+                    JSONObject JSONResponse = new JSONObject();
+                    JSONResponse.put("invokeId", invokeID);
+                    JSONResponse.put("parts", parts);
+                    ByteBuffer buf = StandardCharsets.UTF_8.encode(JSONResponse.toString());
+                    os = response.getOutputStream();
+                    os.write(buf.array());
+                    os.flush();
+                    os.close();
+                    break;
             }
         } else {
             Blob blob = blobStore.getBlob(containerName, blobName, options);
