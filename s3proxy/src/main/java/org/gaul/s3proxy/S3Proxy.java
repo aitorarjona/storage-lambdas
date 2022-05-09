@@ -185,7 +185,8 @@ public final class S3Proxy {
                 case NONE:
                     break;
                 default:
-                    throw new IllegalArgumentException(S3ProxyConstants.PROPERTY_AUTHORIZATION + " invalid value, was: " + authorization);
+                    throw new IllegalArgumentException(S3ProxyConstants.PROPERTY_AUTHORIZATION +
+                            " invalid value, was: " + authorization);
             }
 
             if (localIdentity != null || localCredential != null) {
@@ -241,10 +242,15 @@ public final class S3Proxy {
                 Collection<String> allowedMethods = Lists.newArrayList(splitter.split(corsAllowMethods));
                 allowedMethods.removeAll(CrossOriginResourceSharing.SUPPORTED_METHODS);
                 if (!allowedMethods.isEmpty()) {
-                    throw new IllegalArgumentException(S3ProxyConstants.PROPERTY_CORS_ALLOW_METHODS + " contains not supported values: " + Joiner.on(" ").join(allowedMethods));
+                    throw new IllegalArgumentException(S3ProxyConstants.PROPERTY_CORS_ALLOW_METHODS +
+                            " contains not supported values: " + Joiner.on(" ").join(allowedMethods));
                 }
 
-                builder.corsRules(new CrossOriginResourceSharing(Lists.newArrayList(splitter.split(corsAllowOrigins)), Lists.newArrayList(splitter.split(corsAllowMethods)), Lists.newArrayList(splitter.split(corsAllowHeaders))));
+                builder.corsRules(new CrossOriginResourceSharing(
+                        Lists.newArrayList(splitter.split(corsAllowOrigins)),
+                        Lists.newArrayList(splitter.split(corsAllowMethods)),
+                        Lists.newArrayList(splitter.split(corsAllowHeaders)))
+                );
             }
 
             String jettyMaxThreads = properties.getProperty(S3ProxyConstants.PROPERTY_JETTY_MAX_THREADS);
@@ -344,24 +350,6 @@ public final class S3Proxy {
             return this;
         }
 
-        public Builder activeS3Manifest(String filePath) {
-            try {
-                this.actionRepository = ActionRepository.fromYAML(new File(filePath));
-            } catch (IOException e) {
-                throw new IllegalArgumentException(e.getMessage());
-            }
-            return this;
-        }
-
-        public Builder activeS3Manifest(File file) {
-            try {
-                this.actionRepository = ActionRepository.fromYAML(file);
-            } catch (IOException e) {
-                throw new IllegalArgumentException(e.getMessage());
-            }
-            return this;
-        }
-
         public Builder servicePath(String s3ProxyServicePath) {
             String path = Strings.nullToEmpty(s3ProxyServicePath);
 
@@ -405,12 +393,22 @@ public final class S3Proxy {
             }
             S3Proxy.Builder that = (S3Proxy.Builder) object;
             // do not check credentials or storage backend fields
-            return Objects.equals(this.endpoint, that.endpoint) && Objects.equals(this.secureEndpoint, that.secureEndpoint) && Objects.equals(this.keyStorePath, that.keyStorePath) && Objects.equals(this.keyStorePassword, that.keyStorePassword) && Objects.equals(this.virtualHost, that.virtualHost) && Objects.equals(this.servicePath, that.servicePath) && this.maxSinglePartObjectSize == that.maxSinglePartObjectSize && this.v4MaxNonChunkedRequestSize == that.v4MaxNonChunkedRequestSize && this.ignoreUnknownHeaders == that.ignoreUnknownHeaders && this.corsRules.equals(that.corsRules);
+            return Objects.equals(this.endpoint, that.endpoint) &&
+                    Objects.equals(this.secureEndpoint, that.secureEndpoint) &&
+                    Objects.equals(this.keyStorePath, that.keyStorePath) &&
+                    Objects.equals(this.keyStorePassword, that.keyStorePassword) &&
+                    Objects.equals(this.virtualHost, that.virtualHost) &&
+                    Objects.equals(this.servicePath, that.servicePath) &&
+                    this.maxSinglePartObjectSize == that.maxSinglePartObjectSize &&
+                    this.v4MaxNonChunkedRequestSize == that.v4MaxNonChunkedRequestSize &&
+                    this.ignoreUnknownHeaders == that.ignoreUnknownHeaders &&
+                    this.corsRules.equals(that.corsRules);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(endpoint, secureEndpoint, keyStorePath, keyStorePassword, virtualHost, servicePath, maxSinglePartObjectSize, v4MaxNonChunkedRequestSize, ignoreUnknownHeaders, corsRules);
+            return Objects.hash(endpoint, secureEndpoint, keyStorePath, keyStorePassword, virtualHost,
+                    servicePath, maxSinglePartObjectSize, v4MaxNonChunkedRequestSize, ignoreUnknownHeaders, corsRules);
         }
     }
 

@@ -85,7 +85,6 @@ import com.google.common.net.HttpHeaders;
 import com.google.common.net.PercentEscaper;
 
 import org.apache.commons.fileupload.MultipartStream;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
