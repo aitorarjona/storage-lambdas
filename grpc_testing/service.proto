@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package storagelambda;
+
+service StorageLambdaService {
+  rpc CallStatelessAction(CallActionRequest) returns (stream CallStatelessActionResponse) {}
+  rpc CallStatefulAction(CallActionRequest) returns (CallStatefulActionResponse) {}
+  rpc GetStatefulActionResult(GetStatefulResultRequest) returns (stream GetStatefulResultResponse) {}
+}
+
+message CallActionRequest {
+    string action_name = 1;
+    map<string, string> action_arguments = 2;
+}
+
+message CallStatelessActionResponse {
+    bool final = 1;
+    bytes chunk = 10;
+}
+
+message CallStatefulActionRequest {
+    string action_name = 1;
+    map<string, string> action_arguments = 2;
+}
+
+message CallStatefulActionResponse {
+    string call_id = 1;
+    int32 parts = 2;
+}
+
+message GetStatefulResultRequest {
+    string call_id = 1;
+    int32 part = 2;
+}
+
+message GetStatefulResultResponse {
+    bool final = 1;
+    bytes chunk = 10;
+}
