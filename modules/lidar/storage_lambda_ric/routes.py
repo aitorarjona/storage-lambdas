@@ -52,7 +52,7 @@ async def _setup_action_context(key, bucket, content_type, call_id, parts,
 
 def _call_wrapper(key, bucket, content_type, call_id, parts,
                   action_name, action_callable, action_args, send_conn):
-    asyncio.run(key, bucket, content_type, call_id, parts,
+    asyncio.run(_setup_action_context, key, bucket, content_type, call_id, parts,
                 action_name, action_callable, action_args, send_conn)
 
 
@@ -110,9 +110,31 @@ async def apply_on_get(request, action_name):
     bucket = request.headers['amz-s3proxy-bucket']
     key = request.headers['amz-s3proxy-key']
     content_type = request.headers['amz-s3proxy-content-type']
+    call_id = request.headers.get('amz-s3proxy-call-id', None)
+    part = request.headers.get('amz-s3proxy-part', None)
     kwargs = {k: v.pop() for k, v in request.args.items()}
 
-    logger.info('GET %s %s %s %s', action_name, bucket, key, str(kwargs))
+    logger.info('GET %s %s %s %s %s %s', action_name, bucket, key, str(kwargs), call_id, part)
+
+    if call_id is not None:
+        if call_id not in app.ctx.action_handler._current_actions:
+            raise Exception('call id not found')
+        if part is None:
+            raise Exception('part number required')
+        
+        part_n = int(part)
+
+
+        pipe = app.ctx.action_handler._current_actions['pipes'][part_n]
+        content_type = app.ctx.action_handler._current_actions['pipes']['content_type']
+
+        response = await request.respond(content_type=content_type)
+
+        chunk = pipe.recv()
+        while chunk != b"":
+            await response.send(chunk)
+            chunk = pipe.recv()
+        await response.eof()
 
     if action_name in app.action_handler._stateless_actions:
         redis_client = await aioredis.from_url(
