@@ -242,7 +242,7 @@ if __name__ == '__main__':
     lidar_handler.stateless_action('las2laz', las2laz)
     lidar_handler.stateless_action('filter_inside_XY', filter_inside_XY)
 
-    lidar_handler.stateful_action('tiled_partition', tiled_partition, calc_parts_callable=lambda _, parts: int(parts))
+    lidar_handler.stateful_action('tiled_partition', action_callable=tiled_partition, calc_parts_callable=lambda _, parts: int(parts))
 
     lidar_handler.serve()
 
