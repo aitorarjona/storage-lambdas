@@ -15,6 +15,17 @@ class StreamResponseWrapper:
         await self.__response.eof()
 
 
+class PipedWriter:
+    def __init__(self, pipe):
+        self.__pipe = pipe
+
+    async def write(self, data):
+        self.__pipe.send(data)
+
+    async def flush(self):
+        self.__pipe.send(b"")
+
+
 class MultipartUploader:
     PART_SIZE = 64 * 1024 * 1024  # 64 MiB
 
