@@ -7,6 +7,8 @@ import os
 import logging
 import hashlib
 
+import laspy
+
 from storage_lambda_ric.handler import Handler
 
 logger = logging.getLogger(__name__)
@@ -225,6 +227,48 @@ async def filter_inside_XY(context, min_X, min_Y, max_X, max_Y):
 
 
 async def tiled_partition(context, parts):
+    las_input = laspy.lasreader.LasReader(source=context.input_stream)
+    x_min, y_min = las_input.header.x_min, las_input.header.y_min
+    x_max, y_max = las_input.header.x_max, las_input.header.y_max
+
+    x_size = (x_max - x_min) / parts
+    y_size = (y_max - y_min) / parts
+    
+    bounds = []
+    for i in range(parts):
+        for j in range(parts):
+            x_min_bound = (x_size * i) + x_min
+            y_min_bound = (y_size * j) + y_min
+            x_max_bound = x_min_bound + x_size
+            y_max_bound = y_min_bound + y_size
+            bounds.append((x_min_bound, y_min_bound, x_max_bound, y_max_bound))
+    
+    output_writers = [laspy.laswriter.LasWriter(dest=stream) for stream in context.output_streams]
+    print(chunk_bounds)
+    writer = laspy.open(output_file_path, mode='w', header=las_input.header)
+    
+    try:
+        count = 0
+        for points in las_input.chunk_iterator(1_000_000):
+            print(f"{count / las_input.header.point_count * 100}%")
+            
+            x, y = points.x.copy(), points.y.copy()
+            point_piped = 0
+            chunk_x_min, chunk_y_min, chunk_x_max, chunk_y_max = chunk_bounds
+            chunk_x_min, chunk_y_min, chunk_x_max, chunk_y_max = round(chunk_x_min), round(chunk_y_min), round(chunk_x_max), round(chunk_y_max)
+            mask = (x >= chunk_x_min) & (x <= chunk_x_max) & (y >= chunk_y_min) & (y <= chunk_y_max)
+            if np.any(mask):
+                chunk_points = points[mask]
+                writer.write_points(chunk_points)
+
+                point_piped += np.sum(mask)
+                if point_piped == len(points):
+                    break
+            count += len(points)
+        print(f"{count / las_input.header.point_count * 100}%")
+    finally:
+        writer.close()
+        las_input.close()
     pass
 
 

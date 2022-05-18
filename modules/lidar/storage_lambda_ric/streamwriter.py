@@ -4,18 +4,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-
 class StreamResponseWrapper:
     def __init__(self, response):
         self.__response = response
-    
+
     async def write(self, data):
         await self.__response.send(data)
-    
+
     async def flush(self):
         await self.__response.eof()
-    
-
 
 
 class MultipartUploader:
