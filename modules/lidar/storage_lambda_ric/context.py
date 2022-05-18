@@ -1,5 +1,9 @@
 from enum import Enum
 import logging
+import os
+
+import boto3
+from botocore.client import Config
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +42,16 @@ class StatelessContext:
             self.input_stream = streaming_body
         elif self.method == Method.PUT:
             logger.debug(f'Input stream already inbound')
+
+    def get_sync_s3client(self):
+        return boto3.client(
+            's3',
+            endpoint_url=os.environ['S3_ENDPOINT_URL'],
+            aws_access_key_id=os.environ['S3_ACCESS_KEY_ID'],
+            aws_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY'],
+            config=Config(signature_version='s3v4'),
+            region_name='us-east-1'
+        )
 
 
 class StatefulContext(StatelessContext):

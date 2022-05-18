@@ -4,6 +4,7 @@ import logging
 import asyncio
 from uuid import uuid4
 from multiprocessing import Process, Pipe
+from threading import Thread
 from aiobotocore.session import AioSession
 from sanic import Sanic
 from sanic.response import json
@@ -24,6 +25,7 @@ async def _setup_action_context(key, bucket, content_type, call_id, parts,
     redis_pass = os.environ['REDIS_PASSWORD']
     redis_client = await aioredis.from_url(redis_host, password=redis_pass)
 
+    session = AioSession()
     async with session.create_client(
         's3',
         endpoint_url=os.environ['S3_ENDPOINT_URL'],
@@ -41,8 +43,6 @@ async def _setup_action_context(key, bucket, content_type, call_id, parts,
                                   content_type=content_type,
                                   method=Method.GET)
         try:
-            action_callable = app.action_handler._get_stateless_action(
-                action_name)
             await action_callable(context, **action_args)
         except Exception as e:
             tb = traceback.format_exc()
@@ -52,8 +52,8 @@ async def _setup_action_context(key, bucket, content_type, call_id, parts,
 
 def _call_wrapper(key, bucket, content_type, call_id, parts,
                   action_name, action_callable, action_args, send_conn):
-    asyncio.run(_setup_action_context, key, bucket, content_type, call_id, parts,
-                action_name, action_callable, action_args, send_conn)
+    asyncio.run(_setup_action_context(key, bucket, content_type, call_id, parts,
+                action_name, action_callable, action_args, send_conn))
 
 
 @app.route('/apply/<action_name:str>', methods=["PUT"], stream=True)
@@ -114,29 +114,30 @@ async def apply_on_get(request, action_name):
     part = request.headers.get('amz-s3proxy-part', None)
     kwargs = {k: v.pop() for k, v in request.args.items()}
 
-    logger.info('GET %s %s %s %s %s %s', action_name, bucket, key, str(kwargs), call_id, part)
+    logger.info('---------> GET %s %s %s %s %s %s <---------', action_name, bucket, key, str(kwargs), call_id, part)
 
     if call_id is not None:
         if call_id not in app.ctx.action_handler._current_actions:
             raise Exception('call id not found')
         if part is None:
             raise Exception('part number required')
-        
+
         part_n = int(part)
 
-
-        pipe = app.ctx.action_handler._current_actions['pipes'][part_n]
-        content_type = app.ctx.action_handler._current_actions['pipes']['content_type']
+        pipe = app.ctx.action_handler._current_actions[call_id]['pipes'][part_n]
+        content_type = app.ctx.action_handler._current_actions[call_id]['content_type']
 
         response = await request.respond(content_type=content_type)
 
         chunk = pipe.recv()
         while chunk != b"":
+            print(f'send chunk of size {len(chunk)} for part {part_n}')
             await response.send(chunk)
             chunk = pipe.recv()
         await response.eof()
+        return
 
-    if action_name in app.action_handler._stateless_actions:
+    if action_name in app.ctx.action_handler._stateless_actions:
         redis_client = await aioredis.from_url(
             'redis://'+os.environ['REDIS_HOST'],
             password=os.environ['REDIS_PASSWORD']
@@ -160,18 +161,19 @@ async def apply_on_get(request, action_name):
                                        content_type=content_type,
                                        method=Method.GET)
             try:
-                action_callable = app.action_handler._stateless_actions[action_name]
+                action_callable = app.ctx.action_handler._stateless_actions[action_name]
                 await action_callable(context, **kwargs)
             except Exception as e:
                 tb = traceback.format_exc()
                 logger.error(tb)
                 raise e
-    elif action_name in app.action_handler._stateful_actions:
-        calc_parts_callable, action_callable = app.action_handler._stateful_actions[
+    elif action_name in app.ctx.action_handler._stateful_actions:
+        calc_parts_callable, action_callable = app.ctx.action_handler._stateful_actions[
             action_name]
         parts = calc_parts_callable(None, **kwargs)
 
-        call_id = uuid4().hex
+        # call_id = uuid4().hex
+        call_id = "debugid"
 
         recv_conn, send_conn = [None] * parts, [None] * parts
         for i in range(parts):
@@ -179,17 +181,24 @@ async def apply_on_get(request, action_name):
             recv_conn[i] = conn1
             send_conn[i] = conn2
 
-        p = Process(target=_call_wrapper, args=(key, bucket, content_type,
-                                                call_id, parts, action_name,
-                                                action_callable, kwargs, send_conn))
+        # p = Process(target=_call_wrapper, args=(key, bucket, content_type,
+        #                                         call_id, parts, action_name,
+        #                                         action_callable, kwargs, send_conn))
+        p = Thread(target=_call_wrapper, args=(key, bucket, content_type,
+                                               call_id, parts, action_name,
+                                               action_callable, kwargs, send_conn))
+        p.daemon = True
         p.start()
 
-        app.action_handler._current_actions[call_id] = {
+        app.ctx.action_handler._current_actions[call_id] = {
             'parts': parts,
             'pipes': recv_conn,
-            'process': p
+            'process': p,
+            'key': key,
+            'bucket': bucket,
+            'content_type': content_type
         }
 
-        return response.json({'call_id': call_id, 'parts': parts})
+        return json({'call_id': call_id, 'parts': parts})
     else:
         raise Exception(f"Unknown action {action_name}")

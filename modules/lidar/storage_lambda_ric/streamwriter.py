@@ -1,5 +1,6 @@
 import io
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +20,18 @@ class PipedWriter:
     def __init__(self, pipe):
         self.__pipe = pipe
 
-    async def write(self, data):
-        self.__pipe.send(data)
+    def write(self, data):
+        chunk = bytes(data)
+        if chunk:
+            print('write', len(chunk), self.__pipe)
+        self.__pipe.send(chunk)
 
-    async def flush(self):
+    def flush(self):
         self.__pipe.send(b"")
+    
+    def close(self):
+        self.flush()
+        
 
 
 class MultipartUploader:

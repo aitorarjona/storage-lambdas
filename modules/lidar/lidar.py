@@ -8,6 +8,7 @@ import logging
 import hashlib
 
 import laspy
+import numpy as np
 
 from storage_lambda_ric.handler import Handler
 
@@ -89,10 +90,11 @@ async def extract_meta(context):
         await context.redis_client.hset(context.full_key, 'las_index', index_data)
         for key, value in meta.items():
             await context.redis_client.hset(context.full_key, key, value)
-    
+
     t1 = time.perf_counter()
     logger.debug(f'--- end extract_meta (total time: {t1 - t0}) ---')
-    
+
+
 async def las2laz(context):
     logger.debug('--- start las2laz ---')
     t0 = time.perf_counter()
@@ -132,6 +134,7 @@ async def las2laz(context):
     t1 = time.perf_counter()
     logger.debug(f'--- end las2laz (total time: {t1 - t0}) ---')
 
+
 async def filter_inside_XY(context, min_X, min_Y, max_X, max_Y):
     logger.debug('--- start filter_inside_XY ---')
     t0 = time.perf_counter()
@@ -152,14 +155,14 @@ async def filter_inside_XY(context, min_X, min_Y, max_X, max_Y):
             logger.debug('acquiring lock...')
             await lock.acquire()
             if not os.path.exists(tmp_file_name + '.las'):
-                    logger.debug('lock acquired')
-                    logger.debug('data not found in cache, getting from stream...')
-                    await context.do_get()
-                    async with aiofiles.open(tmp_file_name + '.las', 'wb') as f:
+                logger.debug('lock acquired')
+                logger.debug('data not found in cache, getting from stream...')
+                await context.do_get()
+                async with aiofiles.open(tmp_file_name + '.las', 'wb') as f:
+                    input_chunk = await context.input_stream.read(65536)
+                    while input_chunk != b'':
+                        await f.write(input_chunk)
                         input_chunk = await context.input_stream.read(65536)
-                        while input_chunk != b'':
-                            await f.write(input_chunk)
-                            input_chunk = await context.input_stream.read(65536)
         finally:
             logger.debug('releasing lock...')
             await lock.release()
@@ -184,7 +187,7 @@ async def filter_inside_XY(context, min_X, min_Y, max_X, max_Y):
             out, err = await proc.communicate()
             logger.debug(out)
             logger.debug(err)
-        
+
         # os.remove(tmp_file_name + '.las')
         # os.remove(tmp_file_name + '.lax')
     else:
@@ -227,49 +230,61 @@ async def filter_inside_XY(context, min_X, min_Y, max_X, max_Y):
 
 
 async def tiled_partition(context, parts):
-    las_input = laspy.lasreader.LasReader(source=context.input_stream)
+    logger.debug(f'--- start tiled_partition ---')
+    t0 = time.perf_counter()
+
+    parts = int(parts)
+
+    s3client = context.get_sync_s3client()
+    res = s3client.get_object(Bucket=context.bucket, Key=context.key)
+    reader = res['Body']
+
+    las_input = laspy.lasreader.LasReader(source=reader)
     x_min, y_min = las_input.header.x_min, las_input.header.y_min
     x_max, y_max = las_input.header.x_max, las_input.header.y_max
 
     x_size = (x_max - x_min) / parts
     y_size = (y_max - y_min) / parts
-    
-    bounds = []
+
+    sub_bounds = []
     for i in range(parts):
         for j in range(parts):
             x_min_bound = (x_size * i) + x_min
             y_min_bound = (y_size * j) + y_min
             x_max_bound = x_min_bound + x_size
             y_max_bound = y_min_bound + y_size
-            bounds.append((x_min_bound, y_min_bound, x_max_bound, y_max_bound))
-    
-    output_writers = [laspy.laswriter.LasWriter(dest=stream) for stream in context.output_streams]
-    print(chunk_bounds)
-    writer = laspy.open(output_file_path, mode='w', header=las_input.header)
-    
+            sub_bounds.append((x_min_bound, y_min_bound, x_max_bound, y_max_bound))
+
+    output_writers = [laspy.laswriter.LasWriter(dest=stream, header=las_input.header)
+                      for stream in context.output_streams]
+    print(sub_bounds)
+
     try:
         count = 0
         for points in las_input.chunk_iterator(1_000_000):
-            print(f"{count / las_input.header.point_count * 100}%")
-            
             x, y = points.x.copy(), points.y.copy()
             point_piped = 0
-            chunk_x_min, chunk_y_min, chunk_x_max, chunk_y_max = chunk_bounds
-            chunk_x_min, chunk_y_min, chunk_x_max, chunk_y_max = round(chunk_x_min), round(chunk_y_min), round(chunk_x_max), round(chunk_y_max)
-            mask = (x >= chunk_x_min) & (x <= chunk_x_max) & (y >= chunk_y_min) & (y <= chunk_y_max)
-            if np.any(mask):
-                chunk_points = points[mask]
-                writer.write_points(chunk_points)
+
+            for i, (x_min, y_min, x_max, y_max) in enumerate(sub_bounds):
+                mask = (x >= x_min) & (x <= x_max) & (y >= y_min) & (y <= y_max)
+
+                if np.any(mask):
+                    sub_points = points[mask]
+                    print('writing points')
+                    output_writers[i].write_points(sub_points)
 
                 point_piped += np.sum(mask)
                 if point_piped == len(points):
                     break
             count += len(points)
-        print(f"{count / las_input.header.point_count * 100}%")
+            print(f"{count / las_input.header.point_count * 100}%")
     finally:
-        writer.close()
+        for writer in context.output_streams:
+            writer.close()
         las_input.close()
-    pass
+
+    t1 = time.perf_counter()
+    logger.debug(f'--- end tiled_partition --- (took {t1 - t0} s)')
 
 
 if __name__ == '__main__':
@@ -286,8 +301,11 @@ if __name__ == '__main__':
     lidar_handler.stateless_action('las2laz', las2laz)
     lidar_handler.stateless_action('filter_inside_XY', filter_inside_XY)
 
-    lidar_handler.stateful_action('tiled_partition', action_callable=tiled_partition, calc_parts_callable=lambda _, parts: int(parts))
+    lidar_handler.stateful_action('tiled_partition', action_callable=tiled_partition,
+                                  calc_parts_callable=lambda _, parts: int(parts))
 
-    lidar_handler.serve()
-
-
+    try:
+        lidar_handler.serve()
+    except KeyboardInterrupt:
+        print('killing server')
+        lidar_handler.stop()

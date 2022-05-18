@@ -21,6 +21,12 @@ class Handler:
 
     def serve(self):
         app.ctx.action_handler = self
-        app.run(host=self.host, port=self.port)
+        app.run(host=self.host, port=self.port, verbosity=0)
 
+    def stop(self):
+        app.stop()
+        for action_id, val in self._current_actions.values():
+            logger.info('Kill background process for action %s', action_id)
+            val['process'].terminate()
+            val['process'].join()
 
