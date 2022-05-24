@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package storagelambda;
+
+option go_package = "lidar-grpc2/main";
+
+service StorageLambdaModule {
+  rpc CallStatelessAction(CallActionRequest)
+      returns (stream CallStatelessActionResponse) {}
+  rpc CallStatefulAction(CallActionRequest)
+      returns (CallStatefulActionResponse) {}
+  rpc GetStatefulActionResult(GetStatefulResultRequest)
+      returns (stream GetStatefulResultResponse) {}
+}
+
+enum Method {
+  GET = 0;
+  PUT = 1;
+}
+
+message CallActionRequest {
+  string action_name = 1;
+  map<string, string> action_args = 2;
+  string bucket = 3;
+  string key = 4;
+  string content_type = 5;
+  Method method = 6;
+}
+
+message CallStatelessActionResponse {
+  bool final = 1;
+  bytes chunk = 10;
+}
+
+message CallStatefulActionRequest {
+  string action_name = 1;
+  map<string, string> action_args = 2;
+}
+
+message CallStatefulActionResponse {
+  string call_id = 1;
+  int32 parts = 2;
+}
+
+message GetStatefulResultRequest {
+  string call_id = 1;
+  int32 part = 2;
+}
+
+message GetStatefulResultResponse {
+  bool final = 1;
+  bytes chunk = 10;
+}
