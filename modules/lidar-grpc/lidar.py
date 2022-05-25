@@ -12,66 +12,13 @@ from module_handler.handler import ModuleHandler
 logger = logging.getLogger(__name__)
 
 
-def tiled_partition(context, parts):
-    context.do_get()
-    buff = io.BytesIO()
-    buff.write(context.input_stream.read(1024))
-    buff.seek(0)
-
-    parts = int(parts)
-
-    las_input = laspy.lasreader.LasReader(source=buff)
-    x_min, y_min = las_input.header.x_min, las_input.header.y_min
-    x_max, y_max = las_input.header.x_max, las_input.header.y_max
-
-    x_size = (x_max - x_min) / parts
-    y_size = (y_max - y_min) / parts
-
-    sub_bounds = []
-    for i in range(parts):
-        for j in range(parts):
-            x_min_bound = (x_size * i) + x_min
-            y_min_bound = (y_size * j) + y_min
-            x_max_bound = x_min_bound + x_size
-            y_max_bound = y_min_bound + y_size
-            sub_bounds.append((x_min_bound, y_min_bound, x_max_bound, y_max_bound))
-
-    procs = []
-    for min_X, min_Y, max_X, max_Y in sub_bounds:
-        p = subprocess.Popen(
-
-            f"bin/las2las -verbose -stdin -stdout -olas -inside {min_X} {min_Y} {max_X} {max_Y}",
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True
-        )
-        p.stdin.write(buff.getvalue())
-        procs.append(p)
-
-    chunk = p.stdin.write(context.input_stream.read(65536))
-    while chunk != b"":
-        for p in procs:
-            p.stdin.write(chunk)
-
-        for out, p in zip(context.output_streams, procs):
-            res = p.stdout.read(65536)
-            out.write(res)
-
-
 def _tiled_partition(context, parts):
     logger.debug(f'--- start tiled_partition ---')
     t0 = time.perf_counter()
 
     parts = int(parts)
-
     context.do_get()
-    buff = io.BytesIO()
-    buff.write(context.input_stream.read(1024))
-    buff.seek(0)
-
-    laspy.LasHeader.read_from()
-
-    laspy.LasData.points.
-
-    las_input = laspy.lasreader.LasReader(source=buff)
+    las_input = laspy.lasreader.LasReader(source=context.input_stream)
     x_min, y_min = las_input.header.x_min, las_input.header.y_min
     x_max, y_max = las_input.header.x_max, las_input.header.y_max
 
@@ -86,8 +33,11 @@ def _tiled_partition(context, parts):
             x_max_bound = x_min_bound + x_size
             y_max_bound = y_min_bound + y_size
             sub_bounds.append((x_min_bound, y_min_bound, x_max_bound, y_max_bound))
+    
+    for writer in context.output_streams:
+        las_input.header.write_to(stream=writer, ensure_same_size=True)
 
-    output_writers = [laspy.laswriter.LasWriter(dest=stream, header=las_input.header)
+    output_writers = [laspy.laswriter.UncompressedPointWriter(dest=stream)
                       for stream in context.output_streams]
     print(sub_bounds)
 

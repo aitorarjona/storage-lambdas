@@ -1,63 +1,14 @@
 import io
+import os
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class BufferedPipeWriter:
-    CHUNK_SZ = 65536
-
-    def __init__(self, pipe):
-        self.pipe = pipe
-        self.buff = io.BytesIO()
-
-    def write(self, data):
-        data_bytes = bytes(data)
-        print('write', len(data_bytes), self.pipe)
-        self.buff.write(data_bytes)
-        offset = self.buff.tell()
-        if offset > self.CHUNK_SZ:
-            self.buff.seek(0)
-            while offset > self.CHUNK_SZ:
-                chunk = self.buff.read(self.CHUNK_SZ)
-                print('pipe send', len(chunk), self.pipe)
-                self.pipe.send(chunk)
-                offset = offset - self.CHUNK_SZ
-                remainder = self.buff.read(offset)
-            print('remains', len(remainder), 'in buffer')
-            self.buff = io.BytesIO()
-            self.buff.write(remainder)
-
-    def flush(self):
-        print('flush')
-        offset = self.buff.tell()
-        if offset > self.CHUNK_SZ:
-            self.buff.seek(0)
-            while offset > self.CHUNK_SZ:
-                chunk = self.buff.read(self.CHUNK_SZ)
-                print('pipe send', len(chunk), self.pipe)
-                self.pipe.send(chunk)
-                offset = offset - self.CHUNK_SZ
-            remainder = self.buff.read(offset)
-            print('remains', len(remainder), 'in buffer')
-            print('pipe send', len(remainder), self.pipe)
-            self.pipe.send(remainder)
-            self.pipe.close()
-            del self.buff
-
-    def close(self):
-        self.flush()
-
-
-class StreamResponseWrapper:
-    def __init__(self, response):
-        self.__response = response
-
-    async def write(self, data):
-        await self.__response.send(data)
-
-    async def flush(self):
-        await self.__response.eof()
+class PipedWriter:
+    def __init__(self, fd):
+        self.__pipe = os.fdopen(fd, 'wb')
+        print(self.__pipe.seekable())
 
 
 class MultipartUploader:
